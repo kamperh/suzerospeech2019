@@ -16,7 +16,7 @@ for `suzerospeech`, the Stellenbosch University ZeroSpeech 2019 system.
 Disclaimer
 ----------
 The code provided here is not pretty. But we believe that research should be
-reproducible. We provide no guarantees with the code, but please let me know if
+reproducible. We provide no guarantees with the code, but please let us know if
 you have any problems, find bugs or have general comments.
 
 
