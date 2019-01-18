@@ -19,6 +19,18 @@ reproducible. We provide no guarantees with the code, but please let us know if
 you have any problems, find bugs or have general comments.
 
 
+Feature extraction
+------------------
+For feature extraction, the following docker image needs to be built:
+
+    cd docker
+    docker build -f Dockerfile.tf-py36.cpu -t tf-py36 .
+    cd ..
+
+Then move to `features/` and execute the steps in
+[features/readme.md](features/readme.md).
+
+
 License
 -------
 This code is distributed under the Creative Commons Attribution-ShareAlike
