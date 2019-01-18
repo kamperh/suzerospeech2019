@@ -32,3 +32,12 @@ Extract MFCCs for the English sets:
 
 The default parameters for the MFCCs are set in `features.py`.
 
+
+Splitting audio according to VAD
+--------------------------------
+For the synthesis component, it is useful to have separate wav files. These can
+be obtained by running:
+
+    ./split_wav_vad.py english train
+    ./split_wav_vad.py english test
+    

@@ -82,8 +82,6 @@ Dependencies
 - [Python 3](https://www.python.org/)
 - [python_speech_features](https://github.com/jameslyons/python_speech_features)
 
-    
-
 
 License
 -------
