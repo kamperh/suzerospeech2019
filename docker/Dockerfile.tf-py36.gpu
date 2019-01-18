@@ -20,7 +20,8 @@ RUN apt-get update && \
         jupyter \
         && \
     python -m pip --no-cache-dir install --upgrade \
-        python_speech_features
+        python_speech_features \
+        tqdm 
 
 # Working directory
 WORKDIR /home
