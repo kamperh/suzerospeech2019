@@ -54,6 +54,17 @@ Move to `features/` and execute the steps in
 [features/readme.md](features/readme.md).
 
 
+Consistency rules for this repository
+-------------------------------------
+- British spelling for naming and documentation.
+
+
+Dependencies
+------------
+- [Python 3](https://www.python.org/)
+- [python_speech_features](https://github.com/jameslyons/python_speech_features)
+
+
 License
 -------
 This code is distributed under the Creative Commons Attribution-ShareAlike

@@ -10,5 +10,9 @@ values are NumPy arrays of shape `[n_frames, dim]`.
 
 Filterbanks
 -----------
+Extract filterbanks for the English sets:
 
+    ./get_fbanks.py english train
+    ./get_fbanks.py english test
 
+The default parameters for the filterbanks are set in `features.py`.
