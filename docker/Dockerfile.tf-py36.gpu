@@ -2,7 +2,7 @@
 # Herman Kamper, kamperh@gmail.com, 2019.
 
 # Parent image
-FROM ufoym/deepo:tensorflow-py36-cpu
+FROM ufoym/deepo:tensorflow-py36-gpu
 
 # Standard tools (Python 3.6)
 RUN apt-get update && \

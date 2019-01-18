@@ -19,15 +19,38 @@ reproducible. We provide no guarantees with the code, but please let us know if
 you have any problems, find bugs or have general comments.
 
 
-Feature extraction
-------------------
-For feature extraction, the following docker image needs to be built:
+Docker
+------
+This recipe comes with Dockerfiles which can be used to build images containing
+all of the required dependencies. At the moment, we use a Dockerfile which is
+different from the Dockerfile provided as part of the challenge. To use our
+docker image you need to first:
+
+- Install [Docker](https://docs.docker.com/install/) and follow the [post
+  installation
+  steps](https://docs.docker.com/install/linux/linux-postinstall/).
+- Install [nvidia-docker](https://github.com/NVIDIA/nvidia-docker).
+
+To build the docker image, run the following:
 
     cd docker
     docker build -f Dockerfile.tf-py36.cpu -t tf-py36 .
     cd ..
 
-Then move to `features/` and execute the steps in
+There is also a GPU version of the image. The rest of the steps in this recipe
+can be run in a container in interactive mode. Start the docker image with the
+required data directories mounted:
+
+    docker run \
+        -v ~/endgame/datasets/zerospeech2019/shared/databases/english/:/data/english \
+        -v "$(pwd)":/home -it -p 8887:8887 tf-py36
+
+To run on a GPU, `--runtime=nvidia` is additionally required.
+
+
+Feature extraction
+------------------
+Move to `features/` and execute the steps in
 [features/readme.md](features/readme.md).
 
 
