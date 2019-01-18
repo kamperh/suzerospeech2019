@@ -50,6 +50,7 @@ def main():
     if not path.isdir(args.binary_dir):
         os.makedirs(args.binary_dir)
 
+    print("Writing to:", args.binary_dir)
     for utt_key in tqdm(sorted(feat_dict)):
         fn = path.join(args.binary_dir, utt_key + ".cmp")
         features = feat_dict[utt_key].astype("float32")
