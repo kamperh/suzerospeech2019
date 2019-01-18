@@ -72,6 +72,7 @@ def main():
 
     # Split audio
     data_dir = path.join(zerospeech2019_datadir, args.dataset, args.subset)
+    print("Writing to:", output_dir)
     if args.subset == "train":
         print("Splitting unit discovery audio:")
         split_wav_dir(path.join(data_dir, "unit"), output_dir, vad_dict)
