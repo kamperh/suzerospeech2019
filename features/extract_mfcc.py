@@ -52,14 +52,14 @@ def main():
     data_dir = path.join(zerospeech2019_datadir, args.dataset, args.subset)
     if args.subset == "train":
         print("Extracting unit discovery features:")
-        feat_dict = features.get_mfcc_for_dir(path.join(data_dir, "unit"))
+        feat_dict = features.extract_mfcc_for_dir(path.join(data_dir, "unit"))
         print("Extracting target voice features:")
         feat_dict.update(
-            features.get_mfcc_for_dir(path.join(data_dir, "voice"))
+            features.extract_mfcc_for_dir(path.join(data_dir, "voice"))
             )
     else:
         print("Extracting test features:")
-        feat_dict = features.get_mfcc_for_dir(data_dir)
+        feat_dict = features.extract_mfcc_for_dir(data_dir)
 
     # Read voice activity regions
     vad_fn = path.join(zerospeech2019_datadir, args.dataset, "vads.txt")

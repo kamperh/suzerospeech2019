@@ -16,7 +16,7 @@ import numpy as np
 import scipy.io.wavfile as wav
 
 
-def get_fbank_for_dir(dir):
+def extract_fbank_for_dir(dir):
     """
     Extract filterbanks for all audio files in `dir` and return a dictionary.
 
@@ -35,7 +35,7 @@ def get_fbank_for_dir(dir):
     return feat_dict
 
 
-def get_mfcc_for_dir(dir):
+def extract_mfcc_for_dir(dir):
     """
     Extract MFCCs for all audio files in `dir` and return a dictionary.
 
@@ -52,7 +52,9 @@ def get_mfcc_for_dir(dir):
             )
         d_mfccs = delta(mfccs, 2)
         dd_mfccs = delta(d_mfccs, 2)
-        feat_dict[path.splitext(path.split(wav_fn)[-1])[0]] = mfccs
+        feat_dict[path.splitext(path.split(wav_fn)[-1])[0]] = np.hstack(
+            [mfccs, d_mfccs, dd_mfccs]
+            )
     return feat_dict
 
 
