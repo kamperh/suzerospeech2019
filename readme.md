@@ -22,9 +22,10 @@ you have any problems, find bugs or have general comments.
 Docker
 ------
 This recipe comes with Dockerfiles which can be used to build images containing
-all of the required dependencies. At the moment, we use a Dockerfile which is
-different from the Dockerfile provided as part of the challenge. To use our
-docker image you need to first:
+all of the required dependencies.  This recipe can be completed without using
+Docker, but using the image makes it easier to resolve dependencies. At the
+moment, we use a Dockerfile which is different from the Dockerfile provided as
+part of the challenge. To use our docker image you need to first:
 
 - Install [Docker](https://docs.docker.com/install/) and follow the [post
   installation
@@ -48,6 +49,23 @@ required data directories mounted:
 To run on a GPU, `--runtime=nvidia` is additionally required.
 
 
+Preliminaries
+-------------
+If you are not using the docker image, install all the standalone dependencies
+(see Dependencies section below). Then follow the steps here. The docker image
+includes all these dependencies and GitHub repositories.
+
+Clone the required GitHub repositories into `../src/` as follows:
+
+    mkdir ../src/  # not necessary using docker
+    cd ../src/
+    git clone https://github.com/jameslyons/python_speech_features
+    cd python_speech_features
+    python setup.py develop
+    cd ../../suzerospeech2019/
+
+
+
 Feature extraction
 ------------------
 Move to `features/` and execute the steps in
@@ -63,6 +81,8 @@ Dependencies
 ------------
 - [Python 3](https://www.python.org/)
 - [python_speech_features](https://github.com/jameslyons/python_speech_features)
+
+    
 
 
 License

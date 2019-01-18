@@ -16,3 +16,14 @@ Extract filterbanks for the English sets:
     ./get_fbanks.py english test
 
 The default parameters for the filterbanks are set in `features.py`.
+
+
+MFCCs
+-----
+Extract MFCCs for the English sets:
+
+    ./get_mfccs.py english train
+    ./get_mfccs.py english test
+
+The default parameters for the MFCCs are set in `features.py`.
+

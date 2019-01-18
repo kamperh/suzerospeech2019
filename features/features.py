@@ -28,7 +28,8 @@ def get_fbank_for_dir(dir):
         samplerate, signal = wav.read(wav_fn)
         fbanks = logfbank(
             signal, samplerate=samplerate, winlen=0.025, winstep=0.01,
-            nfilt=45, nfft=2048, lowfreq=0, highfreq=None, preemph=0
+            nfilt=45, nfft=2048, lowfreq=0, highfreq=None, preemph=0,
+            winfunc=np.hamming
             )
         feat_dict[path.splitext(path.split(wav_fn)[-1])[0]] = fbanks
     return feat_dict
@@ -41,7 +42,19 @@ def get_mfcc_for_dir(dir):
     Each dictionary key will be the filename of the associated audio file
     without the extension. Deltas and double deltas are also extracted.
     """
-    pass
+    feat_dict = {}
+    for wav_fn in tqdm(sorted(glob.glob(path.join(dir, "*.wav")))):
+        samplerate, signal = wav.read(wav_fn)
+        mfccs = mfcc(
+            signal, samplerate=samplerate, winlen=0.025, winstep=0.01,
+            numcep=13, nfilt=24, nfft=None, lowfreq=0, highfreq=None,
+            preemph=0.97, ceplifter=22, appendEnergy=True, winfunc=np.hamming
+            )
+        d_mfccs = delta(mfccs, 2)
+        dd_mfccs = delta(d_mfccs, 2)
+        feat_dict[path.splitext(path.split(wav_fn)[-1])[0]] = mfccs
+    return feat_dict
+
 
 
 def extract_vad(feat_dict, vad_dict):
