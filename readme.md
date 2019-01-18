@@ -65,7 +65,6 @@ Clone the required GitHub repositories into `../src/` as follows:
     cd ../../suzerospeech2019/
 
 
-
 Feature extraction
 ------------------
 Move to `features/` and execute the steps in
@@ -75,6 +74,7 @@ Move to `features/` and execute the steps in
 Consistency rules for this repository
 -------------------------------------
 - British spelling for naming and documentation.
+- Use double quotes `"..."` for Python strings.
 
 
 Dependencies

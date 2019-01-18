@@ -17,6 +17,11 @@ Extract filterbanks for the English sets:
 
 The default parameters for the filterbanks are set in `features.py`.
 
+The filterbanks can be converted to binary files by running:
+
+    ./npz_to_binary.py fbank/english/train.npz fbank/english/train/
+    ./npz_to_binary.py fbank/english/test.npz fbank/english/test/
+
 
 MFCCs
 -----
