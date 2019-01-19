@@ -41,6 +41,7 @@ def check_argv():
 
 def split_wav_dir(wav_dir, output_dir, vad_dict):
     """Split the wav files in the given source directory."""
+    i = 0
     for wav_fn in tqdm(sorted(glob.glob(path.join(wav_dir, "*.wav")))):
         utt_key = path.splitext(path.split(wav_fn)[-1])[0]
         for (start, end) in vad_dict[utt_key]:
@@ -52,6 +53,8 @@ def split_wav_dir(wav_dir, output_dir, vad_dict):
                 wav_fn, output_wav_fn, start, end - start
                 )
             subprocess.run(cmd.split())
+            i += 1
+    print("No. wav files:", i)
 
 
 #-----------------------------------------------------------------------------#
