@@ -11,3 +11,4 @@
 !docker/Dockerfile*
 !data/*
 notebooks/.ipynb_checkpoints/*
+__*
