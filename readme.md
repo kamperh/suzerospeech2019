@@ -48,6 +48,16 @@ required data directories mounted:
 
 To run on a GPU, `--runtime=nvidia` is additionally required.
 
+To directly start a Jupyter notebook in a container, run:
+
+    docker run --rm -it -p 8889:8889 \
+        -v ~/endgame/datasets/zerospeech2019/shared/databases/english/:/data/english \
+        -v "$(pwd)":/home \
+        tf-py36 \
+        bash -c "ipython notebook --no-browser --ip=0.0.0.0 --allow-root --port=8889"
+
+and then open http://localhost:8889/ in a browser.
+
 
 Preliminaries
 -------------
