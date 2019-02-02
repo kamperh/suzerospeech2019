@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Extract filterbank features for a specified dataset.
+Extract MFCC features for a specified dataset.
 
 Author: Herman Kamper
 Contact: kamperh@gmail.com

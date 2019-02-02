@@ -15,7 +15,9 @@ Extract filterbanks for the English sets:
     ./extract_zs2019_fbank.py english train
     ./extract_zs2019_fbank.py english test
 
-The default parameters for the filterbanks are set in `features.py`.
+The default parameters for the filterbanks are set in `features.py`. To extract
+features for Buckeye data, the corresponding `buckeye` scripts can be called
+(these do not require the `dataset` argument).
 
 The filterbanks can be converted to binary files by running:
 
