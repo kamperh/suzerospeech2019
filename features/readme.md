@@ -12,8 +12,8 @@ Filterbanks
 -----------
 Extract filterbanks for the English sets:
 
-    ./extract_fbank.py english train
-    ./extract_fbank.py english test
+    ./extract_zs2019_fbank.py english train
+    ./extract_zs2019_fbank.py english test
 
 The default parameters for the filterbanks are set in `features.py`.
 
@@ -27,8 +27,8 @@ MFCCs
 -----
 Extract MFCCs for the English sets:
 
-    ./extract_mfcc.py english train
-    ./extract_mfcc.py english test
+    ./extract_zs2019_mfcc.py english train
+    ./extract_zs2019_mfcc.py english test
 
 The default parameters for the MFCCs are set in `features.py`.
 
