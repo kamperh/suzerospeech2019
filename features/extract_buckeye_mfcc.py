@@ -140,7 +140,7 @@ def main():
     output_dir = path.join("mfcc", "buckeye")
     if not path.isdir(output_dir):
         os.makedirs(output_dir)
-    output_fn = path.join(output_dir, args.subset + ".npz")
+    output_fn = path.join(output_dir, args.subset + ".dd.npz")
     print("Writing:", output_fn)
     np.savez_compressed(output_fn, **feat_dict)
 

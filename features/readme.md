@@ -42,4 +42,25 @@ be obtained by running:
 
     ./split_wav_vad.py english train
     ./split_wav_vad.py english test
-    
+
+
+Same-different words for Buckeye
+--------------------------------
+For the same-different evaluation, isolated words need to be extracted. First
+the set of words needs to be determined from the forced alignments:
+
+    ./samediff_words.py buckeye
+
+Then extract the segments from the NumPy archives:
+
+    # Filterbanks
+    ./segments_from_npz.py \
+        fbank/buckeye/devpart2.dd.npz \
+        lists/buckeye.samediff.list \
+        fbank/buckeye/devpart2.samediff.dd.npz \
+
+    # MFCC
+    ./segments_from_npz.py \
+        mfcc/buckeye/devpart2.dd.npz \
+        lists/buckeye.samediff.list \
+        mfcc/buckeye/devpart2.samediff.dd.npz
