@@ -55,9 +55,9 @@ Then extract the segments from the NumPy archives:
 
     # Filterbanks
     ./segments_from_npz.py \
-        fbank/buckeye/devpart2.dd.npz \
+        fbank/buckeye/devpart2.npz \
         lists/buckeye.samediff.list \
-        fbank/buckeye/devpart2.samediff.dd.npz \
+        fbank/buckeye/devpart2.samediff.npz
 
     # MFCC
     ./segments_from_npz.py \
