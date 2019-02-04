@@ -1,0 +1,79 @@
+"""
+"""
+
+
+import tensorflow as tf
+
+
+from tf_models import TF_FLOAT_DTYPE
+
+
+def _get_rnn_cell(units, rnn_cell="lstm", rnn_cell_kwargs=None):
+    """
+    The `kwargs` parameters are passed directly to the constructor of the cell
+    class, e.g. peephole connections can be used by adding `use_peepholes=True`
+    when `rnn_type` is "lstm".
+    """
+    cell_args = {}
+    if rnn_cell_kwargs is not None:
+        cell_args.update(rnn_cell_kwargs)
+    if rnn_cell == "lstm":
+        cell_args["state_is_tuple"] = True  # default LSTM parameters
+        cell = tf.nn.rnn_cell.LSTMCell(units, **cell_args)
+    elif rnn_cell == "gru":
+        cell = tf.nn.rnn_cell.GRUCell(units, **cell_args)
+    elif rnn_cell == "rnn":
+        cell = tf.nn.rnn_cell.BasicRNNCell(units, **cell_args)
+    else:
+        raise ValueError("Got invalid RNN cell specifier: {}".format(rnn_cell))
+    return cell
+
+
+def build_rnn(
+        x_input, x_lengths, units, rnn_cell="lstm", rnn_cell_kwargs=None,
+        keep_prob=1., scope=None):
+    """
+    Build a recurrent neural network (RNN) with architecture `rnn_cell`.
+
+    The RNN is dynamic, with `x_lengths` giving the lengths as a Tensor with
+    shape [n_data]. The input `x` should be padded to have shape [n_data,
+    n_padded, d_in].
+
+    TODO(rpeloff): function doc
+
+    Parameters
+    ----------
+    rnn_type : str
+        Can be "lstm", "gru" or "rnn".
+    rnn_cell_kwargs : dict
+        These are passed directly to the constructor of the cell class, e.g.
+        peephole connections can be used by adding `use_peepholes=True` when
+        `rnn_type` is "lstm".
+    """
+    # RNN cell
+    cell = _get_rnn_cell(units, rnn_cell, rnn_cell_kwargs)
+
+    # Dropout
+    cell = tf.nn.rnn_cell.DropoutWrapper(
+        cell, input_keep_prob=1., output_keep_prob=keep_prob)
+
+    # Dynamic RNN
+    return tf.nn.dynamic_rnn(
+        cell, x_input, sequence_length=x_lengths, dtype=tf.float32, scope=scope)
+
+
+def build_multi_layer_rnn(
+        x_input, x_lengths, layer_units, rnn_cell="lstm", rnn_cell_kwargs=None,
+        keep_prob=1., scope=None):
+    """
+    Build a multi-layer recurrent neural network (RNN) with architecture `rnn_cell`.
+
+    TODO(rpeloff): function doc
+    """
+    x_output = x_input
+    for layer_index, units in enumerate(layer_units):
+        with tf.variable_scope(scope):
+            with tf.variable_scope("rnn_layer_{}".format(layer_index)):
+                x_output, states = build_rnn(x_output, x_lengths, units, rnn_cell,
+                                            rnn_cell_kwargs, keep_prob, scope)
+    return x_output, states
