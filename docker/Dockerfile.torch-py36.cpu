@@ -21,7 +21,11 @@ RUN apt-get update && \
         && \
     python -m pip --no-cache-dir install --upgrade \
         python_speech_features \
-        tqdm 
+        tqdm \
+        && \
+    python -m pip --no-cache-dir install --upgrade \
+        tensorboardX
+
 
 # Working directory
 WORKDIR /home
