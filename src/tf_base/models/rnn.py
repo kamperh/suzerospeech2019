@@ -1,11 +1,25 @@
+"""TODO(rpeloff): module doc
+
+Author: Ryan Eloff
+Contact: ryan.peter.eloff@gmail.com
+Date: February 2019
 """
-"""
+
+
+from __future__ import division
+from __future__ import absolute_import
+from __future__ import print_function
 
 
 import tensorflow as tf
 
 
-from tf_models import TF_FLOAT_DTYPE
+from constants import TF_FLOAT_DTYPE
+
+
+# ------------------------------------------------------------------------------ # -----80~100---- #
+# Utillity functions:
+# ------------------------------------------------------------------------------ # -----80~100---- #
 
 
 def _get_rnn_cell(units, rnn_cell="lstm", rnn_cell_kwargs=None):
@@ -27,6 +41,11 @@ def _get_rnn_cell(units, rnn_cell="lstm", rnn_cell_kwargs=None):
     else:
         raise ValueError("Got invalid RNN cell specifier: {}".format(rnn_cell))
     return cell
+
+
+# ------------------------------------------------------------------------------ # -----80~100---- #
+# Recurrent neural network (RNN):
+# ------------------------------------------------------------------------------ # -----80~100---- #
 
 
 def build_rnn(
@@ -62,6 +81,10 @@ def build_rnn(
         cell, x_input, sequence_length=x_lengths, dtype=tf.float32, scope=scope)
 
 
+# ------------------------------------------------------------------------------ # -----80~100---- #
+# Multi-layer RNN:
+# ------------------------------------------------------------------------------ # -----80~100---- #
+
 def build_multi_layer_rnn(
         x_input, x_lengths, layer_units, rnn_cell="lstm", rnn_cell_kwargs=None,
         keep_prob=1., scope=None):
@@ -73,7 +96,8 @@ def build_multi_layer_rnn(
     x_output = x_input
     for layer_index, units in enumerate(layer_units):
         with tf.variable_scope(scope):
-            with tf.variable_scope("rnn_layer_{}".format(layer_index)):
-                x_output, states = build_rnn(x_output, x_lengths, units, rnn_cell,
-                                            rnn_cell_kwargs, keep_prob, scope)
+            rnn_layer_scope = "rnn_layer_{}".format(layer_index)
+            x_output, states = build_rnn(
+                x_output, x_lengths, units, rnn_cell, rnn_cell_kwargs,
+                keep_prob, rnn_layer_scope)
     return x_output, states

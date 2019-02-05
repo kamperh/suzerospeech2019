@@ -1,8 +1,8 @@
-"""Define constants used throughout the `tf_models` package.
+"""Define constants used throughout the `src` packages.
 
 Author: Ryan Eloff
 Contact: ryan.peter.eloff@gmail.com
-Date: May 2018
+Date: February 2019
 """
 
 

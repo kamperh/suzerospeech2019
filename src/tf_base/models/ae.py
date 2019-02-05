@@ -1,8 +1,22 @@
+"""TODO(rpeloff): module doc
+
+Author: Ryan Eloff
+Contact: ryan.peter.eloff@gmail.com
+Date: February 2019
 """
-"""
+
+
+from __future__ import division
+from __future__ import absolute_import
+from __future__ import print_function
 
 
 import tensorflow as tf
+
+
+# ------------------------------------------------------------------------------ # -----80~100---- #
+# Basic auto-encoder
+# ------------------------------------------------------------------------------ # -----80~100---- #
 
 
 def build_autoencoder(
@@ -40,3 +54,8 @@ def build_autoencoder(
     y_reconstruction = x_decoded
 
     return {"z": z_latent, "y": y_reconstruction}
+
+
+# ------------------------------------------------------------------------------ # -----80~100---- #
+# Variational auto-encoder
+# ------------------------------------------------------------------------------ # -----80~100---- #
