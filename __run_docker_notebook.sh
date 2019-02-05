@@ -1,13 +1,19 @@
 #!/bin/bash
 
-DOCKER_NAME=$1  # first arg optional container name
-DOCKER_NAME=${DOCKER_NAME:-suzerospeech2019-test}
+DOCKER_NAME=$1  # 1st arg optional container name
+DOCKER_NAME=${DOCKER_NAME:-suzerospeech2019-notebook}
 
+DATA_LOCATION=$2  # 2nd arg optional data mount location
+
+echo ""
 echo "Start Docker test container: ${DOCKER_NAME}"
+echo "Speech data loaded to '/suzerospeech2019/features' from: ${DATA_LOCATION}"
+echo ""
 
 docker run \
     --runtime=nvidia \
     -v $(pwd):/suzerospeech2019 \
+    -v ${DATA_LOCATION}:/suzerospeech2019/features \
     -u $(id -u):$(id -g) \
     -w /suzerospeech2019 \
     --rm \
