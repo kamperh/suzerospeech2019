@@ -19,6 +19,19 @@ reproducible. We provide no guarantees with the code, but please let us know if
 you have any problems, find bugs or have general comments.
 
 
+Repository structure
+--------------------
+- docker/
+- data/ - Any data files that we produce or get from the challenge organisers.
+- features/ - Input features (MFCCs, filterbanks, etc.) are extracted here.
+- wavenet/ - WaveNet speech synthesis.
+- notebooks/
+    - vq_vae.ipynb
+    - cat_vae.ipynb
+- evaluation/
+- src/ - Mature source used in different parts of the project can be put here.
+
+
 Docker
 ------
 This recipe comes with Dockerfiles which can be used to build images containing
