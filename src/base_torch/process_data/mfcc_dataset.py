@@ -19,21 +19,19 @@ MfccDataset:
 
 class MfccDataset(Dataset):
 
-    def __init__(self, mfcc_dir, transform=None):
+    def __init__(self, mfcc_npz, transform=None):
 
-        mfcc_dir = os.path.expanduser(mfcc_dir)
+        mfcc_npz = os.path.expanduser(mfcc_npz)
 
-        if not os.path.isdir(mfcc_dir):
+        if not os.path.isfile(mfcc_npz):
             raise NotADirectoryError
         else:
-            self.mfcc_dir = mfcc_dir
+            self.mfcc_npz = mfcc_npz
 
         # load mfcc numpy file
-        npz_fn = glob.glob(
-            mfcc_dir + '/*.npz'
+        self.npz = np.load(
+            self.mfcc_npz
         )
-
-        self.npz = np.load(npz_fn)
 
         self.keys = sorted(
             self.npz.keys()
@@ -54,7 +52,7 @@ class MfccDataset(Dataset):
             # apply transform
             utt_feat = self.transform(utt_feat)
 
-        return utt_key, utt_feat
+        return utt_feat
 
     def __len__(self):
-        return len(self.utt_keys)
+        return len(self.keys)
