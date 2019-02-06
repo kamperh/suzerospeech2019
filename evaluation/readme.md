@@ -14,12 +14,12 @@ Run the following command in a terminal:
 
 Output should look something like:
 
-    Copying test.dd.npz...
-    test.dd.npz
+    Copying features_for_eval.npz...
+    features_for_eval.npz
         133,815,216 100%  326.30MB/s    0:00:00 (xfr#1, to-chk=0/1)
-    Running /home/suzero/run_abx_eval.sh on feature file /home/suzero/tmp.XZB7EL9WlT/test.dd.npz
+    Running /home/suzero/run_abx_eval.sh on feature file /home/suzero/tmp.XZB7EL9WlT/features_for_eval.npz
     100%|##########| 13994/13994 [00:14<00:00, 985.18it/s]
-    ('Reading:', '/home/suzero/tmp.XZB7EL9WlT/test.dd.npz')
+    ('Reading:', '/home/suzero/tmp.XZB7EL9WlT/features_for_eval.npz')
     ('Writing to:', '/home/suzero/tmp.XZB7EL9WlT/textfeatures')
     Copying baseline_submission.zip ...
     Unzipping baseline_submission.zip ...
