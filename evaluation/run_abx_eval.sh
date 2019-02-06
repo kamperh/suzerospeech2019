@@ -41,12 +41,13 @@ echo "Cleaning temporary files..."
 rm "${tmpdir}/${baseline_zipfn}"
 rm -rf "${tmpdir}/unzipped/"
 rm -rf "${tmpdir}/textfeatures/"
-exit 0
 
 echo "Copying submission zip to docker home dir ..."
 #echo "mkdir -p ${docker_homedir}/${tmpname}/"
 mkdir -m 775 -p "${docker_homedir}/evaluations/${tmpname}/"
+mkdir -m 775 -p "${docker_homedir}/evaluations/${tmpname}/working/"
 chown suzero:docker "${docker_homedir}/evaluations/${tmpname}/"
+chown suzero:docker "${docker_homedir}/evaluations/${tmpname}/working/"
 #echo "copy to tmp dir ..."
 #echo "cp ${tmpdir}/${tmpname}.zip ${docker_homedir}/${tmpname}/"
 cp "${tmpdir}/${tmpname}.zip" "${docker_homedir}/evaluations/${tmpname}/"
@@ -57,4 +58,4 @@ echo "${submissionzipfn}"
 
 echo "Executing docker ..."
 # Execute the evaluation process in a docker container.
-docker run -t --rm -v /media/data1/ewaldvdw/projects/zerospeech2019/shared:/shared -v /media/data1/ewaldvdw/projects/docker/zs2019_baseline_exported_filesystem/home/zs2019:/home/zs2019 zeroresource/zs2019:latest bash /home/zs2019/evaluate.sh /home/zs2019/submission_eval_mfcc_dd.zip english auxiliary_embedding1 dtw_cosine
+docker run -t --rm -v /media/data1/ewaldvdw/projects/zerospeech2019/shared:/shared -v /media/data1/ewaldvdw/projects/docker/zs2019_baseline_exported_filesystem/home/zs2019:/home/zs2019 zeroresource/zs2019:latest bash /home/zs2019/suzero_evaluate.sh "${submissionzipfn}" english auxiliary_embedding1 dtw_cosine
