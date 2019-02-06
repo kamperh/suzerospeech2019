@@ -7,14 +7,9 @@ innpzfn_bn=$(basename $1)
 
 # Copy the .npz file into a tmp dir on the remote machine.
 tmpdir=$(basename $(mktemp -u))
-echo ${tmpdir}
 echo "Copying ${innpzfn}..."
 rsync -P ${innpzfn} suzero@146.232.221.153:~/${tmpdir}/
 
 # kick off the evaluation process with an ssh command
-#ssh suzero@146.232.221.153 bash ~/run_abx_eval.sh ~/${tmpdir}/${innpzfn}
 ssh suzero@146.232.221.153 bash '~/run_abx_eval.sh' '~/'"${tmpdir}/${innpzfn}"
-
-# Capture the out and print
-
 

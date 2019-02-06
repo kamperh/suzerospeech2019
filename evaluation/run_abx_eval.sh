@@ -4,7 +4,6 @@
 
 innpzfn=$1
 
-
 baseline_zipfn="baseline_submission.zip"
 baseline_zip_src="/home/ewaldvdw/projects/docker/zs2019_baseline_exported_filesystem/home/zs2019/baseline/${baseline_zipfn}"
 docker_homedir="/home/ewaldvdw/projects/docker/zs2019_baseline_exported_filesystem/home/zs2019"
@@ -12,9 +11,7 @@ docker_homedir="/home/ewaldvdw/projects/docker/zs2019_baseline_exported_filesyst
 tmpdir="$(dirname ${innpzfn})"
 tmpname="$(basename ${tmpdir})"
 
-
 echo "Running $0 on feature file ${innpzfn}"
-
 
 #mkdir -p "${tmpdir}"
 
@@ -54,7 +51,7 @@ cp "${tmpdir}/${tmpname}.zip" "${docker_homedir}/evaluations/${tmpname}/"
 
 # The submission zip file name as it will be referenced from within the docker container.
 submissionzipfn="/home/zs2019/evaluations/${tmpname}/${tmpname}.zip"
-echo "${submissionzipfn}"
+echo "Submission zip-file name: ${submissionzipfn}"
 
 echo "Executing docker ..."
 # Execute the evaluation process in a docker container.

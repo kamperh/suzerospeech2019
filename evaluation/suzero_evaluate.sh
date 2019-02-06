@@ -61,7 +61,7 @@ BITRATE_SCORE_FILE=$SUBMISSION_NAME.bitrate.txt
 
 #TMP_DIR=$(mktemp -d)
 TMP_DIR="$(dirname ${SUBMISSION_ZIP})/working"
-echo "${TMP_DIR}"
+#echo "${TMP_DIR}"
 
 # checking the zip file integrity
 unzip -t "$SUBMISSION_ZIP" > /dev/null || failure "corrupted $SUBMISSION_ZIP"
@@ -117,9 +117,9 @@ cat ${TMP_DIR}/../$ABX_SCORE_FILE
 cat ${TMP_DIR}/../$BITRATE_SCORE_FILE
 
 echo ""
-echo "ABX score is stored at ${TMP_DIR}/../$ABX_SCORE_FILE"
-echo "Bitrate score is stored at ${TMP_DIR}/../$BITRATE_SCORE_FILE"
+echo "ABX score is stored at ${TMP_DIR%/working}/$ABX_SCORE_FILE"
+echo "Bitrate score is stored at ${TMP_DIR%/working}/$BITRATE_SCORE_FILE"
 
-echo $TMP_DIR
+#echo $TMP_DIR
 KEEP_TEMP=true
 
