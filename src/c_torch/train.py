@@ -9,12 +9,14 @@ import time
 import torch
 import torch.nn as nn
 import argparse as arg
-import src.modules as mymod
 import torch.optim as optimizer
 from torch.optim import lr_scheduler
-from .process_data import MfccDataset
+from networks import MfccAuto
+from functions import MaskedLoss
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
+import torchvision.transforms as tf
+from process_data import MfccDataset, Numpy2Tensor, CropMfcc, mfcc_collate
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -23,8 +25,8 @@ from torch.utils.data import DataLoader
 
 # create Argument Parser
 parser = arg.ArgumentParser(
-    prog='Train: STE Binary Compression Systems:',
-    description='ste binary training script'
+    prog='Train: STE Binary Mfcc Compression System:',
+    description='training script'
 )
 
 parser.add_argument(
@@ -34,7 +36,7 @@ parser.add_argument(
     type=str,
     required=True,
     choices=['MfccAuto'],
-    help='MFCC Compression System'
+    help='Mfcc Compression System'
 )
 
 parser.add_argument(
@@ -75,11 +77,19 @@ parser.add_argument(
 
 parser.add_argument(
     '--train',
-    '-td',
-    metavar='TRAIN_DIR',
+    '-tf',
+    metavar='TRAIN_FILE',
+    type=str,
+    help='Training .npz file'
+)
+
+parser.add_argument(
+    '--valid',
+    '-vf',
+    metavar='VALID_FILE',
     type=str,
     default='./',
-    help='Training data directory'
+    help='Validation .npz file'
 )
 
 parser.add_argument(
@@ -110,6 +120,24 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--mfcc_width',
+    '-m_w',
+    metavar='MFCC_WIDTH',
+    type=int,
+    default=100,
+    help='Width to crop mfcc'
+)
+
+parser.add_argument(
+    '--mfcc_height',
+    '-m_h',
+    metavar='MFCC_HEIGHT',
+    type=int,
+    default=39,
+    help='Height to crop mfcc'
+)
+
+parser.add_argument(
     '--verbose',
     '-v',
     action='store_true'
@@ -127,16 +155,17 @@ args = parser.parse_args()
 # TRAINING LOOP
 # ----------------------------------------------------------------------------------------------------------------------
 
-sys = None
-
 # GPU || CPU
 device = torch.device(
     "cuda:0" if torch.cuda.is_available() else "cpu"
 )
 
+# Define System
+sys = None
+
 if args.sys == 'MfccAuto':
     # def network
-    sys = mymod.MfccAuto(
+    sys = MfccAuto(
         bnd=args.bottleneck_depth
     )
 
@@ -144,11 +173,15 @@ if args.sys == 'MfccAuto':
 # model -> device
 sys.to(device)
 
-# MSE Loss function
-criterion = nn.MSELoss()
+# MSE Masked Loss function
+criterion = MaskedLoss(
+    criterion=nn.MSELoss()
+)
 
 # Adam Optimizer
-opt = optimizer.Adam(sys.parameters(), args.learn_rate)
+opt = optimizer.Adam(
+    sys.parameters(), args.learn_rate
+)
 
 # MultiStep scheduler
 scheduler = lr_scheduler.MultiStepLR(
@@ -176,34 +209,52 @@ if not os.path.isdir(train_dir):
 # Mfcc Dataset
 
 train_dataset = MfccDataset(
-    mfcc_dir=train_dir
+    mfcc_npz=args.train,
+    transform=tf.Compose([
+        Numpy2Tensor(),
+        CropMfcc(
+            t=args.mfcc_width,
+            freq=args.mfcc_height
+        )
+    ])
 )
 
 valid_dataset = MfccDataset(
-    mfcc_dir=valid_dir
+    mfcc_npz=args.valid,
+    transform=tf.Compose([
+        Numpy2Tensor(),
+        CropMfcc(
+            t=args.mfcc_width,
+            freq=args.mfcc_height
+        )
+    ])
 )
+
 
 # Mfcc DataLoader
 
-train_data_loader = DataLoader(
+train_dataLoader = DataLoader(
     dataset=train_dataset,
     batch_size=args.batch_size,
-    shuffle=True,
+    collate_fn=mfcc_collate,
     num_workers=2
 )
 
-valid_data_loader = MfccDataset(
-    mfcc_dir=valid_dir
+valid_dataLoader = DataLoader(
+    dataset=valid_dataset,
+    batch_size=args.batch_size,
+    collate_fn=mfcc_collate,
+    num_workers=2
 )
 
-# dataLoader dict
+# dataLoader Dict
 dataLoaders = {
-    'train': train_data_loader,
-    'valid': valid_data_loader
+    'train': train_dataLoader,
+    'valid': valid_dataLoader
 }
 
 
-# start epoch, time previously elapsed, best MSE
+# start epoch, time previously elapsed, best Loss
 t_prev = 0.0
 best_loss = 10e8
 current_epoch = 1

@@ -1,7 +1,8 @@
 # imports
 import torch.nn as nn
-from base_torch.layers import Binarizer
-from base_torch.layers import StackedRnnBase
+from layers import Binarizer
+from layers import StackedRnnBase
+
 
 """
 MFCC GRU Autoencoder
@@ -22,10 +23,10 @@ class MfccAuto(nn.Module):
         # Encoder Network
         self.encoder = StackedRnnBase(
             input_sizes=[
-                input_size, 20, 60, 120
+                input_size, 20, 60
             ],
             hidden_sizes=[
-                20, 60, 120, self.bnd
+                20, 60, self.bnd
             ],
             mode='GRU'
 
@@ -45,13 +46,12 @@ class MfccAuto(nn.Module):
             mode='GRU'
         )
 
-    def forward(self, x):
+    def forward(self, x, x_len):
 
-        # encode & decode
-        e = self.encoder(x)
+        # encode & decode using RNN
+        e, h_e = self.encoder(x, x_len)
         b = self.binarizer(e)
-        d = self.decoder(b)
+        d, h_d = self.decoder(b, x_len)
 
         # ret decoding & bits
-        return d, b
-
+        return d, b[b != 0]

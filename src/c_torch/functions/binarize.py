@@ -24,8 +24,8 @@ class Binarize(Function):
         if is_train:
             # during training
             p = input.new(input.size()).uniform_()
-            x[(1 - input) / 2 <= p] = 1
-            x[(1 - input) / 2 > p] = -1
+            x[((1 - input)/2 <= p) * (input != 0.0)] = 1
+            x[((1 - input)/2 > p) * (input != 0.0)] = -1
 
         else:
             # inference

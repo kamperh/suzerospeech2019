@@ -1,6 +1,5 @@
 # imports
 import os
-import glob
 import numpy as np
 from torch.utils.data.dataset import Dataset
 
@@ -12,6 +11,7 @@ MfccDataset:
         Args:
             mfcc_dir  (string)   : path to directory containing video clip files
             vid_ext   (string)   : video file extension, default is '.mp4'
+            ret_keys  (bool)     : set to True to return array of utt_keys
             transform (callable) : optional transforms to be applied to mfcc data
 
 """
@@ -19,7 +19,7 @@ MfccDataset:
 
 class MfccDataset(Dataset):
 
-    def __init__(self, mfcc_npz, transform=None):
+    def __init__(self, mfcc_npz, ret_keys=False, transform=None):
 
         mfcc_npz = os.path.expanduser(mfcc_npz)
 
@@ -39,6 +39,8 @@ class MfccDataset(Dataset):
 
         self.transform = transform
 
+        self.ret_keys = ret_keys
+
     def __getitem__(self, index):
 
         # extract mfcc
@@ -51,6 +53,9 @@ class MfccDataset(Dataset):
         if self.transform is not None:
             # apply transform
             utt_feat = self.transform(utt_feat)
+
+        if self.ret_keys:
+            return utt_key, utt_feat
 
         return utt_feat
 
