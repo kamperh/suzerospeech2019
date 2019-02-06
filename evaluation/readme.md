@@ -12,7 +12,10 @@ Run the following command in a terminal:
 
     bash run_abx_eval_remotely.sh features_for_eval.npz
 
-Output should look something like:
+The script executes a remote copy and an ssh command to the remote machine running the evaluation process.
+This requires authentication for the remote logins. You can either type in the password for the `suzero` user on the remote machine each time, or (*preferably*) you can add your ssh public key to the `~/.ssh/authorized_keys` file on the remote machine to avoid having to type the password.
+If you are not familiar with key-based authentication, ask me (Ewald) and we will set it up.
+Once the script has kicked off, output should look something like this:
 
     Copying features_for_eval.npz...
     features_for_eval.npz
@@ -47,6 +50,9 @@ Output should look something like:
     Bitrate score is stored at /home/zs2019/evaluations/tmp.XZB7EL9WlT/tmp.XZB7EL9WlT.bitrate.txt
 
 
+Other files in this evaluation directory
+----------------------------------------
+ 
 The `run_abx_eval.sh` script sits locally on the evaluation host machine and is called in the `run_abx_eval_remotely.sh` script through ssh.
-The `suzero_evaluate.sh` script is a copy of the baseline docker `evaluate.sh` script and slightly modified for our purposes. The only changes are to the directories where ABX work is being done and results are output.
+The `suzero_evaluate.sh` script is a copy of the baseline docker `evaluate.sh` script, but slightly modified for our purposes. The only changes are to the directories where ABX processing is being done and results are output.
 
