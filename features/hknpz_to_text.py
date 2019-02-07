@@ -24,12 +24,12 @@ def check_argv():
     parser = argparse.ArgumentParser(
         description=__doc__.strip().split("\n")[0], add_help=False
         )
-    parser.add_argument("--strip_vads", type=bool, default=True, help="Set the to False to keep the VAD indices in the output file names or True to strip them or True to strip them. Default is True (strip VAD indices).")
+    parser.add_argument("--strip_vads", action='store_true', default=False, help="Set the to False to keep the VAD indices in the output file names or True to strip them or True to strip them. Default is True (strip VAD indices).")
     parser.add_argument("npz_fn", type=str, help="NumPy archive")
     parser.add_argument(
         "output_dir", type=str,
-        help="directory where binary files are written (is created if "
-        "it doesn't exist"
+        help="directory where text files are written (is created if "
+        "it doesn't exist)"
         )
 
     if len(sys.argv) == 1:
@@ -37,6 +37,9 @@ def check_argv():
         sys.exit(1)
     return parser.parse_args()
 
+
+def join_segments():
+    pass
 
 #-----------------------------------------------------------------------------#
 #                                MAIN FUNCTION                                #
