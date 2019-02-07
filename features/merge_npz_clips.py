@@ -1,3 +1,14 @@
+"""
+Glues all files in a numpy archive with the same speaker and utterance id 
+together. (Utterances that were split by silences are merged together.)  
+
+Usage: python merge_npz_clips.py <src_npz> <dest_npz>
+Where <src_npz> is the numpy archive with the split utterances and <dest_npz>
+is the name of the new numpy archive for the merged utterances.
+
+Author: Lisa van Staden
+"""
+
 import sys
 import numpy as np
 
