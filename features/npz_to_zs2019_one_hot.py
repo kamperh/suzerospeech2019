@@ -1,3 +1,15 @@
+
+"""
+Convert a numpy archive with one hot encodings to text files in the zs2019 one hot format.
+
+Usage: python npz_to_zs2019_one_hot.py <src_npz> <dest_dir> [with_repetition]
+Where <src_npz> is the numpy archive file and <dest_dir> is the directory where the
+zs2019 text files should be saved. Optionally, you can pass in "with_repetition" if you
+don't want the unit repetitions to be removed.
+
+Author: Lisa van Staden
+"""
+
 import numpy as np
 import sys
 
