@@ -19,7 +19,7 @@ class MaskedLoss(nn.Module):
 
         self.criterion = criterion
 
-    def forward(self, target, output, seq_len):
+    def forward(self, output, target):
 
         # select non-padded values
         output = output[output != 0.0]

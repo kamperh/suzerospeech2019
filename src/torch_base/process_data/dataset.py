@@ -9,8 +9,7 @@ MfccDataset:
     Facilitates the creation of an iterable dataset from a folder of MFCC's.
 
         Args:
-            mfcc_dir  (string)   : path to directory containing video clip files
-            vid_ext   (string)   : video file extension, default is '.mp4'
+            mfcc_npz  (string)   : numpy archive (.npz) containing mfcc / filter bank data
             ret_keys  (bool)     : set to True to return array of utt_keys
             transform (callable) : optional transforms to be applied to mfcc data
 
@@ -24,7 +23,8 @@ class MfccDataset(Dataset):
         mfcc_npz = os.path.expanduser(mfcc_npz)
 
         if not os.path.isfile(mfcc_npz):
-            raise NotADirectoryError
+            err_msg = "Specified file : {} does not exist!"
+            raise NotADirectoryError(err_msg.format(mfcc_npz))
         else:
             self.mfcc_npz = mfcc_npz
 

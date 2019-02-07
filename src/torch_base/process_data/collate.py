@@ -5,7 +5,7 @@ from torch.nn import ConstantPad1d
 """
 Function mfcc_collate
 
-    pads each mfcc in batch to longest seq in that batch
+    pads each mfcc in batch to longest seq in that batch and converts sampled features to torch.Tensor
 
 """
 
@@ -24,12 +24,24 @@ def mfcc_collate(batch, pad_val=0.0):
             ConstantPad1d((0, int(max_seq - b.size(0))), value=pad_val)(b.transpose(0, 1)) for b in batch
         ]
 
+        # sort seq & get sorted indices
+        indices = torch.argsort(
+            torch.tensor(seq_len),
+            descending=True
+        )
+        seq_len.sort(reverse=True)
+
+        # sort batch (descending order) for torch.rnn compatibility
+        batch = [
+            batch[i] for i in indices
+        ]
+
         batch = torch.stack(batch, 0)
 
         # (B, f, T) -> (B, T, f)
         batch = batch.permute(0, 2, 1)
 
-        # ret tensor batch && original seq lengths
+        # ret tensor batch & corresponding seq lengths
 
         return batch, seq_len
 

@@ -3,20 +3,21 @@ Pytorch Training Script
 
 """
 
-# imports
+# general imports
 import os
 import time
-import torch
 import torch.nn as nn
 import argparse as arg
-import torch.optim as optimizer
-from torch.optim import lr_scheduler
-from networks import MfccAuto
-from functions import MaskedLoss
+import torchvision.transforms as tf
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
-import torchvision.transforms as tf
-from process_data import MfccDataset, Numpy2Tensor, CropMfcc, mfcc_collate
+from torch.optim import optimizer, lr_scheduler
+
+
+# imports from torch base code
+from .process_data import *
+from .networks import MfccAuto
+from .functions import MaskedLoss
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -25,18 +26,18 @@ from process_data import MfccDataset, Numpy2Tensor, CropMfcc, mfcc_collate
 
 # create Argument Parser
 parser = arg.ArgumentParser(
-    prog='Train: STE Binary Mfcc Compression System:',
-    description='training script'
+    prog='Train: Speech Compression System:',
+    description='training script to train a binary speech (mfcc or filter-bank) compression system'
 )
 
 parser.add_argument(
-    '--sys',
+    '--system',
     '-s',
     metavar='SYSTEM',
     type=str,
     required=True,
     choices=['MfccAuto'],
-    help='Mfcc Compression System'
+    help='SpeechCompression System'
 )
 
 parser.add_argument(
@@ -45,7 +46,7 @@ parser.add_argument(
     metavar='EPOCHS',
     type=int,
     default=100,
-    help='Number of epochs'
+    help='Training epochs'
 )
 
 parser.add_argument(
@@ -120,21 +121,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--mfcc_width',
-    '-m_w',
-    metavar='MFCC_WIDTH',
+    '--crop_width',
+    '-c_w',
+    metavar='CROP_WIDTH',
     type=int,
     default=100,
-    help='Width to crop mfcc'
+    help='Width to crop input'
 )
 
 parser.add_argument(
-    '--mfcc_height',
-    '-m_h',
-    metavar='MFCC_HEIGHT',
+    '--crop_height',
+    '-c_h',
+    metavar='CROP_HEIGHT',
     type=int,
     default=39,
-    help='Height to crop mfcc'
+    help='Height to crop input'
 )
 
 parser.add_argument(
@@ -173,7 +174,7 @@ if args.sys == 'MfccAuto':
 # model -> device
 sys.to(device)
 
-# MSE Masked Loss function
+# Loss function
 criterion = MaskedLoss(
     criterion=nn.MSELoss()
 )
@@ -201,10 +202,6 @@ save_loc = os.path.expanduser(args.save)
 if not os.path.isdir(save_loc):
     raise NotADirectoryError('Save directory d.n.e')
 
-train_dir = os.path.expanduser(args.train)
-
-if not os.path.isdir(train_dir):
-    raise NotADirectoryError('Train directory d.n.e')
 
 # Mfcc Dataset
 
@@ -213,8 +210,8 @@ train_dataset = MfccDataset(
     transform=tf.Compose([
         Numpy2Tensor(),
         CropMfcc(
-            t=args.mfcc_width,
-            freq=args.mfcc_height
+            t=args.crop_width,
+            freq=args.crop_height
         )
     ])
 )
@@ -224,8 +221,8 @@ valid_dataset = MfccDataset(
     transform=tf.Compose([
         Numpy2Tensor(),
         CropMfcc(
-            t=args.mfcc_width,
-            freq=args.mfcc_height
+            t=args.crop_width,
+            freq=args.crop_height
         )
     ])
 )
@@ -236,15 +233,13 @@ valid_dataset = MfccDataset(
 train_dataLoader = DataLoader(
     dataset=train_dataset,
     batch_size=args.batch_size,
-    collate_fn=mfcc_collate,
-    num_workers=2
+    collate_fn=mfcc_collate
 )
 
 valid_dataLoader = DataLoader(
     dataset=valid_dataset,
     batch_size=args.batch_size,
-    collate_fn=mfcc_collate,
-    num_workers=2
+    collate_fn=mfcc_collate
 )
 
 # dataLoader Dict
@@ -325,19 +320,17 @@ for epoch in range(current_epoch, args.epochs + 1, 1):
         for i, data in enumerate(dataLoaders[phase], 0):
 
             # data -> device
-            data = data.to(device)
-
-            # [0, 1] -> [-1, 1]
-            data = (data - 0.5) / 0.5
+            inpt, seq_len = data
+            inpt = inpt.to(device)
 
             # zero model gradients
             opt.zero_grad()
 
             # forward
-            out = sys(inpt)
+            out, _ = sys(inpt, seq_len)
 
             # loss
-            loss = criterion(out, target=data)
+            loss = criterion(out, target=inpt)
 
             # running loss
             run_loss += loss.item()
