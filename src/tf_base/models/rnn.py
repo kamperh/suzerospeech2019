@@ -27,6 +27,8 @@ def _get_rnn_cell(units, rnn_cell="lstm", rnn_cell_kwargs=None):
     The `kwargs` parameters are passed directly to the constructor of the cell
     class, e.g. peephole connections can be used by adding `use_peepholes=True`
     when `rnn_type` is "lstm".
+
+    TODO(rpeloff): function doc
     """
     cell_args = {}
     if rnn_cell_kwargs is not None:
