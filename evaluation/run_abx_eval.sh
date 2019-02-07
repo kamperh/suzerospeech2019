@@ -56,5 +56,4 @@ echo "Submission zip-file name: ${submissionzipfn}"
 
 echo "Executing docker ..."
 # Execute the evaluation process in a docker container.
-# TODO
 docker run -t --rm -v /media/data1/suzero/docker/shared:/shared -v /media/data1/suzero/docker/zs2019_home:/home/zs2019 zeroresource/zs2019:latest bash /home/zs2019/suzero_evaluate.sh "${submissionzipfn}" english auxiliary_embedding1 dtw_cosine
