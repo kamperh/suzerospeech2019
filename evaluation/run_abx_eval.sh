@@ -5,8 +5,9 @@
 innpzfn=$1
 
 baseline_zipfn="baseline_submission.zip"
-baseline_zip_src="/home/ewaldvdw/projects/docker/zs2019_baseline_exported_filesystem/home/zs2019/baseline/${baseline_zipfn}"
-docker_homedir="/home/ewaldvdw/projects/docker/zs2019_baseline_exported_filesystem/home/zs2019"
+#baseline_zip_src="/home/ewaldvdw/projects/docker/zs2019_baseline_exported_filesystem/home/zs2019/baseline/${baseline_zipfn}"
+baseline_zip_src="/media/data1/suzero/docker/zs2019_home/baseline/${baseline_zipfn}"
+docker_homedir="/media/data1/suzero/docker/zs2019_home"
 
 tmpdir="$(dirname ${innpzfn})"
 tmpname="$(basename ${tmpdir})"
@@ -16,7 +17,7 @@ echo "Running $0 on feature file ${innpzfn}"
 #mkdir -p "${tmpdir}"
 
 # Convert the .npz file to text based format that submission/evaluation expects.
-python /home/ewaldvdw/projects/zerospeech2019/suzerospeech2019/features/hknpz_to_text.py "${innpzfn}" "${tmpdir}/textfeatures"
+python /home/suzero/suzerospeech2019/features/hknpz_to_text.py "${innpzfn}" "${tmpdir}/textfeatures"
 
 # Create the submission zip file containing the features.
 #  First, copy the baseline_submission.zip to "hack" it with our features.
@@ -55,4 +56,5 @@ echo "Submission zip-file name: ${submissionzipfn}"
 
 echo "Executing docker ..."
 # Execute the evaluation process in a docker container.
-docker run -t --rm -v /media/data1/ewaldvdw/projects/zerospeech2019/shared:/shared -v /media/data1/ewaldvdw/projects/docker/zs2019_baseline_exported_filesystem/home/zs2019:/home/zs2019 zeroresource/zs2019:latest bash /home/zs2019/suzero_evaluate.sh "${submissionzipfn}" english auxiliary_embedding1 dtw_cosine
+# TODO
+docker run -t --rm -v /media/data1/suzero/docker/shared:/shared -v /media/data1/suzero/docker/zs2019_home:/home/zs2019 zeroresource/zs2019:latest bash /home/zs2019/suzero_evaluate.sh "${submissionzipfn}" english auxiliary_embedding1 dtw_cosine
