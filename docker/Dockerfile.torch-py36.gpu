@@ -1,0 +1,30 @@
+# Docker image for Pytorch and Python 3.6.
+# Andre Nortje, adnortje@gmail.com, 2019.
+
+# Parent image
+FROM ufoym/deepo:pytorch-py36-cu90
+
+# Standard tools (Python 3.6)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        less \
+        nano \
+        && \
+    python -m pip --no-cache-dir install --upgrade \
+        setuptools \
+        pip \
+        && \
+    python -m pip --no-cache-dir install --upgrade \
+        ipython \
+        nose \
+        jupyter \
+        && \
+    python -m pip --no-cache-dir install --upgrade \
+        python_speech_features \
+        tqdm \
+        && \
+    python -m pip --no-cache-dir install --upgrade \
+        tensorboardX
+
+# Working directory
+WORKDIR /home
