@@ -30,7 +30,7 @@ class StackedRnnBase(nn.Module):
         self.batch_first = batch_first
 
         # layer input sizes
-        input_sizes = [input_size].append(hidden_sizes[:-1])
+        input_sizes = [input_size] + hidden_sizes[:-1]
 
         self.multilayer_rnn = nn.ModuleList([
             nn.RNNBase(

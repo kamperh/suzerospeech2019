@@ -2,8 +2,8 @@
 import os
 import torch
 import torch.nn as nn
-from torch_base.layers import Binarizer
-from torch_base.layers import StackedRnnBase
+from layers import Binarizer
+from layers import StackedRnnBase
 
 
 """
@@ -24,11 +24,9 @@ class MfccAuto(nn.Module):
 
         # Encoder Network
         self.encoder = StackedRnnBase(
-            input_sizes=[
-                input_size, 20, 60
-            ],
+            input_size=input_size,
             hidden_sizes=[
-                20, 60, self.bnd
+                20, 60, 120, self.bnd
             ],
             mode='GRU'
 
@@ -39,16 +37,14 @@ class MfccAuto(nn.Module):
 
         # Decoder Network
         self.decoder = StackedRnnBase(
-            input_sizes=[
-                self.bnd, 120, 60, 20,
-            ],
+            input_size=self.bnd,
             hidden_sizes=[
                 120, 60, 20, input_size
             ],
             mode='GRU'
         )
 
-    def forward(self, x, x_len):
+    def forward(self, x, x_len=None):
 
         # encode & decode using RNN
         e, h_e = self.encoder(x, x_len)
@@ -73,4 +69,4 @@ class MfccAuto(nn.Module):
             self.load_state_dict(
                 torch.load(save_file)
             )
-        return
+        return self

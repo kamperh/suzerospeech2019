@@ -1,6 +1,6 @@
 # imports
 import torch.nn as nn
-from torch_base.functions import Binarize
+from functions import Binarize
 
 """
 Binarization Layer

@@ -24,7 +24,9 @@ RUN apt-get update && \
         tqdm \
         && \
     python -m pip --no-cache-dir install --upgrade \
-        tensorboardX
+        tensorboardX \
+    python -m pip --no-cache-dir install --upgrade \
+        bitstring
 
 # Working directory
 WORKDIR /home
