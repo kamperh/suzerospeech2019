@@ -150,6 +150,7 @@ for data in input_dataLoader:
 
     # Key and input feature
     utt_key, inpt_tensor = data
+    utt_key = utt_key[0]
 
     # forward & encode
     with torch.no_grad():
@@ -184,7 +185,6 @@ for data in input_dataLoader:
     bits_dict[utt_key] = bits_oh
 
     bar.next()
-
 
 # save Dictionaries
 np.savez(FEAT_NPZ, **feat_dict)
