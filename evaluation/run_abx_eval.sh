@@ -1,6 +1,10 @@
 #!/bin/bash
 
 # The first argument is the input hknpz-format .npz file to be evaluated inside the docker image.
+#
+# Author: Ewald van der Westhuizen
+# Date: Feb 2019
+#
 
 innpzfn=$1
 

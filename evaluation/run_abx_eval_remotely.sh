@@ -2,6 +2,11 @@
 
 # This script will run the ABX evaluation on a remote machine which contains the zs2019 baseline docker image.
 # The only argument to this script is the filename of the hknpz (.npz) feature file.
+#
+# Author: Ewald van der Westhuizen
+# Date: Feb 2019
+#
+
 innpzfn=$1
 innpzfn_bn=$(basename $1)
 

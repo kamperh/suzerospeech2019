@@ -2,6 +2,7 @@
 #
 # This is a copy of the script for ZS2019 Challenge's evaluation of submissions,
 # and was modified a bit by Ewald for our evaluation pipeline.
+# Date: Feb 2019
 
 function failure { [ ! -z "$1" ] && echo "Error: $1"; exit 1; }
 
