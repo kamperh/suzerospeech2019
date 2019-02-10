@@ -8,6 +8,7 @@ Andre Nortje adnortje@gmail.com
 # general imports
 import os
 import torch
+import itertools
 import numpy as np
 import argparse as arg
 from progress.bar import Bar
@@ -123,15 +124,15 @@ multi_hot_2_one_hot function
 """
 
 
-def multi_2_one_hot(multi_hot, bottle_neck):
+def multi_2_one_hot(multi_hot, lookup_table):
 
     # multi-hot -> integer targets
     int_targets = [
-        sum(np.where(mh == 1)[0] + 1) for mh in multi_hot
+        lookup_table.index(list(mh)) for mh in multi_hot
     ]
 
     # int targets -> one hot
-    one_hot = np.eye(bottle_neck**2)[int_targets]
+    one_hot = np.eye(2**bottle_neck)[int_targets]
 
     return one_hot
 
@@ -145,6 +146,13 @@ bits_dict = {}
 
 # init progress bar
 bar = Bar("Encoding Progress :", max=len(input_dataset))
+
+# create binary lookup table
+lookup_table = [
+    list(i) for i in itertools.product([0, 1], repeat=bottle_neck)
+]
+
+print(len(lookup_table))
 
 for data in input_dataLoader:
 
@@ -179,7 +187,7 @@ for data in input_dataLoader:
 
     # convert bits
     bits_oh = multi_2_one_hot(
-        bits_mhot, bottle_neck
+        bits_mhot, lookup_table
     )
 
     bits_dict[utt_key] = bits_oh
