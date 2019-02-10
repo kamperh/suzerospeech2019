@@ -114,10 +114,18 @@ def fs_iscontinuous(autt):
 #-----------------------------------------------------------------------------#
 
 def main():
+    output_format = "%d"
+    output_width = "6"
+
     args = check_argv()
 
     print("Reading:", args.npz_fn)
     feat_dict = np.load(args.npz_fn)
+
+    if fd_iscontinuous(feat_dict):
+        output_format = "%." + output_width + "E"
+    else:
+        output_format = "%d"
 
     print_report(feat_dict)
 
@@ -128,12 +136,12 @@ def main():
     for utt_key in tqdm(sorted(feat_dict)):
 
         if args.strip_vads:
-            outfn = ''.join(utt_key.rpartition('_')[0:-2])
+            outfn = "".join(utt_key.rpartition("_")[0:-2])
         else:
             outfn = utt_key
 
         fn = path.join(args.output_dir, outfn + ".txt")
-        np.savetxt(fn, feat_dict[utt_key])
+        np.savetxt(fn, feat_dict[utt_key], fmt=output_format)
 
 if __name__ == "__main__":
     main()
