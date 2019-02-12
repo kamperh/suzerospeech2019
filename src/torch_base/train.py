@@ -10,14 +10,14 @@ import torch.nn as nn
 import argparse as arg
 import torchvision.transforms as tf
 from tensorboardX import SummaryWriter
-from torch.utils.data import DataLoader
-from torch.optim import optimizer, lr_scheduler
+from torch.optim import Adam
+from torch.optim import lr_scheduler
 
 
 # imports from torch base code
-from .process_data import *
-from .networks import MfccAuto
-from .functions import MaskedLoss
+from process_data import *
+from networks import MfccAuto
+from functions import MaskedLoss
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -125,7 +125,7 @@ parser.add_argument(
     '-c_w',
     metavar='CROP_WIDTH',
     type=int,
-    default=100,
+    default=500,
     help='Width to crop input'
 )
 
@@ -134,7 +134,7 @@ parser.add_argument(
     '-c_h',
     metavar='CROP_HEIGHT',
     type=int,
-    default=39,
+    default=13,
     help='Height to crop input'
 )
 
@@ -164,10 +164,11 @@ device = torch.device(
 # Define System
 sys = None
 
-if args.sys == 'MfccAuto':
+if args.system == 'MfccAuto':
     # def network
     sys = MfccAuto(
-        bnd=args.bottleneck_depth
+        bnd=args.bottleneck_depth,
+        input_size=args.crop_height
     )
 
 
@@ -180,7 +181,7 @@ criterion = MaskedLoss(
 )
 
 # Adam Optimizer
-opt = optimizer.Adam(
+opt = Adam(
     sys.parameters(), args.learn_rate
 )
 
@@ -230,16 +231,18 @@ valid_dataset = MfccDataset(
 
 # Mfcc DataLoader
 
-train_dataLoader = DataLoader(
-    dataset=train_dataset,
+train_dataLoader = BatchBucketSampler(
+    data_source=train_dataset,
     batch_size=args.batch_size,
-    collate_fn=mfcc_collate
+    num_buckets=3,
+    shuffle_every_epoch=True
 )
 
-valid_dataLoader = DataLoader(
-    dataset=valid_dataset,
+valid_dataLoader = BatchBucketSampler(
+    data_source=valid_dataset,
     batch_size=args.batch_size,
-    collate_fn=mfcc_collate
+    num_buckets=3,
+    shuffle_every_epoch=True
 )
 
 # dataLoader Dict
