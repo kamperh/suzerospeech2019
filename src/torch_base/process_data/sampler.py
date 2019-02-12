@@ -1,5 +1,6 @@
 # imports
 import numpy as np
+from .collate import mfcc_collate
 from torch.utils.data.sampler import Sampler
 
 """
@@ -72,8 +73,13 @@ class BatchBucketSampler(Sampler):
             batch_indices = self.indices[
                             i_b*self.batch_size:(i_b+1)*self.batch_size
                             ]
-            batch = [self.data_source[i] for i in batch_indices]
-            yield(batch)
+            batch = [
+                self.data_source[i] for i in batch_indices
+            ]
+
+            batch = mfcc_collate(batch)
+
+            yield batch
 
     def _shuffle_buckets(self):
 

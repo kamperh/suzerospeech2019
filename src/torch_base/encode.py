@@ -17,11 +17,12 @@ from torch.utils.data import DataLoader
 
 # imports from torch base code
 from networks import MfccAuto
-from process_data import MfccDataset, Numpy2Tensor, Tensor2Numpy
+from process_data import MfccDataset, Numpy2Tensor, Tensor2Numpy, CropMfcc
 
 # Constants
 # save to .npz archives
-BITS_NPZ = "output_discrete_feats.npz"
+BITS_NPZ_MH = "output_discrete_feats_multi_hot.npz"
+BITS_NPZ_OH = "output_discrete_feats_one_hot.npz"
 FEAT_NPZ = "output_feats.npz"
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -65,26 +66,36 @@ sys_file_loc = os.path.expanduser(args.system_file)
 
 # Define System
 sys = None
-bottle_neck = 0
+# def bottle-neck (1 x 128 one-hot -> 7 bits multi-hot)
+bottle_neck = 7
 
 if not os.path.isfile(sys_file_loc):
     raise FileNotFoundError("Specified System File D.N.E")
 
 sys_name = os.path.basename(sys_file_loc).split('.')[0]
 
-if sys_name == 'MfccAuto20':
+if sys_name == "MfccAuto":
 
-    # def sys bottle_neck
-    bottle_neck = 20
+    print(
+        "System: {}".format(sys_name)
+    )
 
     # def network
     sys = MfccAuto(
-        bnd=bottle_neck
+        bnd=bottle_neck,
+        input_size=13
     ).load(
         save_file=sys_file_loc
     )
 
-# TODO: Add additional systems here once trained :)
+elif sys_name == "FbankAuto":
+
+    print(
+        "System: {}".format(sys_name)
+    )
+
+
+# TODO: Add additional systems here once trained !!
 
 else:
     err_msg = "Oops, we didn't train this : {}"
@@ -106,7 +117,11 @@ if not os.path.isfile(inpt_file_loc):
 input_dataset = MfccDataset(
     mfcc_npz=inpt_file_loc,
     transform=tf.Compose([
-        Numpy2Tensor()
+        Numpy2Tensor(),
+        CropMfcc(
+            t=2000,
+            freq=13
+        )
     ]),
     ret_keys=True
 )
@@ -124,11 +139,11 @@ multi_hot_2_one_hot function
 """
 
 
-def multi_2_one_hot(multi_hot, lookup_table):
+def multi_2_one_hot(multi_hot, lookup_dict):
 
     # multi-hot -> integer targets
     int_targets = [
-        lookup_table.index(list(mh)) for mh in multi_hot
+        lookup_dict["".join(map(str, map(int, mh)))] for mh in multi_hot
     ]
 
     # int targets -> one hot
@@ -141,18 +156,32 @@ def multi_2_one_hot(multi_hot, lookup_table):
 print("\nEncoding using : " + sys_name)
 print("------------------------------")
 
+# encoded feat dict
 feat_dict = {}
-bits_dict = {}
+bits_dict_mh = {}
+bits_dict_oh = {}
+
+# binary code lookup table
+lookup_table = {}
 
 # init progress bar
 bar = Bar("Encoding Progress :", max=len(input_dataset))
 
-# create binary lookup table
-lookup_table = [
+
+# all possible binary codes
+bin_codes = [
     list(i) for i in itertools.product([0, 1], repeat=bottle_neck)
 ]
 
-print(len(lookup_table))
+# create lookup-table
+for j, bit_code in enumerate(bin_codes, 0):
+    # multi-hot bit key
+    mh_bit_key = "".join(
+        map(str, bit_code)
+    )
+    # key -> symbol
+    lookup_table[mh_bit_key] = j
+
 
 for data in input_dataLoader:
 
@@ -172,31 +201,33 @@ for data in input_dataLoader:
         opt_tensor.squeeze(0).cpu()
     )
 
-    bits_mhot = Tensor2Numpy()(
+    bits_mh = Tensor2Numpy()(
         bits_tensor.cpu()
     )
 
     # [-1, 1] -> [0, 1]
-    bits_mhot[bits_mhot == -1] = 0
+    bits_mh[bits_mh == -1] = 0
 
     # group bits per feat together
-    bits_mhot = bits_mhot.reshape(-1, bottle_neck)
+    bits_mh = bits_mh.reshape(-1, bottle_neck)
 
     # update feature dictionary
     feat_dict[utt_key] = opt_np
 
     # convert bits
     bits_oh = multi_2_one_hot(
-        bits_mhot, lookup_table
+        bits_mh, lookup_table
     )
 
-    bits_dict[utt_key] = bits_oh
+    bits_dict_oh[utt_key] = bits_oh
+    bits_dict_mh[utt_key] = bits_mh
 
     bar.next()
 
 # save Dictionaries
-np.savez(FEAT_NPZ, **feat_dict)
-np.savez(BITS_NPZ, **bits_dict)
+np.savez_compressed(FEAT_NPZ, **feat_dict)
+np.savez_compressed(BITS_NPZ_MH, **bits_dict_mh)
+np.savez_compressed(BITS_NPZ_OH, **bits_dict_oh)
 
 bar.finish()
 
