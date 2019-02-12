@@ -97,7 +97,7 @@ def main():
         print("Extracting target voice features:")
         targed_audio_dict, target_feat_dict = preprocess(path.join(data_dir, "voice"), args)
         audio_dict.update(targed_audio_dict)
-        feat_dict.update(feat_dict)
+        feat_dict.update(target_feat_dict)
     else:
         print("Extracting test features:")
         audio_dict, feat_dict = preprocess(data_dir, args)
