@@ -2,23 +2,23 @@
 import torch
 
 """
-Transforms applied per batch of MFCC's
+Transforms applied to SpeechData
 
 """
 
 """
-Class CropMfcc
+Class CropSpeech
 
-    crops Mfcc tensor to desired (T x freq)
+    crops Speech Feature Tensor to desired (T x F)
 """
 
 
-class CropMfcc(object):
+class CropSpeech(object):
 
-    def __init__(self, t, freq):
+    def __init__(self, t, feat):
 
         self.t = t
-        self.f = freq
+        self.f = feat
 
     def __call__(self, mfcc):
         # Np -> Torch.Tensor

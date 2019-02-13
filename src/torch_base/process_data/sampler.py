@@ -1,6 +1,6 @@
 # imports
 import numpy as np
-from .collate import mfcc_collate
+from .collate import speech_collate
 from torch.utils.data.sampler import Sampler
 
 """
@@ -77,7 +77,7 @@ class BatchBucketSampler(Sampler):
                 self.data_source[i] for i in batch_indices
             ]
 
-            batch = mfcc_collate(batch)
+            batch = speech_collate(batch)
 
             yield batch
 

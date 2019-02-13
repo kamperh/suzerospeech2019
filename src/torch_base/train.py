@@ -206,24 +206,24 @@ if not os.path.isdir(save_loc):
 
 # Mfcc Dataset
 
-train_dataset = MfccDataset(
-    mfcc_npz=args.train,
+train_dataset = SpeechDataset(
+    speech_npz=args.train,
     transform=tf.Compose([
         Numpy2Tensor(),
-        CropMfcc(
+        CropSpeech(
             t=args.crop_width,
-            freq=args.crop_height
+            feat=args.crop_height
         )
     ])
 )
 
-valid_dataset = MfccDataset(
-    mfcc_npz=args.valid,
+valid_dataset = SpeechDataset(
+    speech_npz=args.valid,
     transform=tf.Compose([
         Numpy2Tensor(),
-        CropMfcc(
+        CropSpeech(
             t=args.crop_width,
-            freq=args.crop_height
+            feat=args.crop_height
         )
     ])
 )

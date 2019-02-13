@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 # imports from torch base code
 from networks import MfccAuto
-from process_data import MfccDataset, Numpy2Tensor, Tensor2Numpy, CropMfcc
+from process_data import SpeechDataset, Numpy2Tensor, Tensor2Numpy, CropSpeech
 
 # Constants
 # save to .npz archives
@@ -114,16 +114,16 @@ inpt_file_loc = os.path.expanduser(args.input_file)
 if not os.path.isfile(inpt_file_loc):
     raise FileNotFoundError("Specified Input File D.N.E")
 
-input_dataset = MfccDataset(
-    mfcc_npz=inpt_file_loc,
+input_dataset = SpeechDataset(
+    speech_npz=inpt_file_loc,
     transform=tf.Compose([
         Numpy2Tensor(),
-        CropMfcc(
+        CropSpeech(
             t=2000,
-            freq=13
+            feat=13
         )
     ]),
-    ret_keys=True
+    return_keys=True
 )
 
 input_dataLoader = DataLoader(
