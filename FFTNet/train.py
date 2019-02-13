@@ -52,8 +52,8 @@ def clone_as_averaged_model(device, args, model, ema):
     return averaged_model
 
 
-def create_model(hparams):
-    if hparams.feature_type == 'mcc':
+def create_model(args):
+    if args.feature_type == 'mcc':
         lc_channel = args.mcep_dim + 3
     else:
         lc_channel = args.num_mels
@@ -77,7 +77,7 @@ def train_fn(args):
                 state[key] = value.to(device)
 
     if args.resume is not None:
-        log("Resume checkpoint from: {}:".format(args.resume))
+        print("Resume checkpoint from: {}:".format(args.resume))
         checkpoint = torch.load(args.resume, map_location=lambda storage, loc: storage)
         if torch.cuda.device_count() > 1:
             model.module.load_state_dict(checkpoint['model'])
@@ -92,10 +92,12 @@ def train_fn(args):
         model.receptive_field, model.receptive_field / args.sample_rate * 1000))
 
     if args.feature_type == "mcc":
-        scaler = StandardScaler()
-        scaler.mean_ = np.load(os.path.join(args.data_dir, 'mean.npy'))
-        scaler.scale_ = np.load(os.path.join(args.data_dir, 'scale.npy'))
-        feat_transform = transforms.Compose([lambda x: scaler.transform(x)])
+        # mfccs have already been scaled for Ryan
+        # scaler = StandardScaler()
+        # scaler.mean_ = np.load(os.path.join(args.data_dir, 'mean.npy'))
+        # scaler.scale_ = np.load(os.path.join(args.data_dir, 'scale.npy'))
+        # feat_transform = transforms.Compose([lambda x: scaler.transform(x)])
+        feat_transform = None
     else:
         feat_transform = None
 
@@ -158,7 +160,7 @@ if __name__ == '__main__':
     parser.add_argument("--num_freq", type=int, default=1025)
     parser.add_argument("--mcep_dim", type=int, default=24)
     parser.add_argument("--sample_rate", type=int, default=16000)
-    parser.add_argument("--feature_type", default="melspc")  # mcc or melspc
+    parser.add_argument("--feature_type", default="mcc")  # mcc or melspc
     parser.add_argument("--frame_shift_ms", type=int, default=10)
     parser.add_argument("--noise_injecting", type=bool, default=True)
     parser.add_argument("--data_dir", default="data", help="Metadata file which contains the keys of audio and melspec")

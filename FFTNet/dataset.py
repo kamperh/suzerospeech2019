@@ -30,7 +30,7 @@ class FilterbankDataset(Dataset):
         self.noise_injecting = noise_injecting
 
         audio = np.load(path.join(data_dir, "unsegmented_train_audio_fftnet.npz"))
-        fbank = np.load(path.join(data_dir, "unsegmented_train_fbank_fftnet.npz"))
+        fbank = np.load(path.join(data_dir, "unsegmented_train_mfcc_fftnet.npz"))
         self.audio_buffer = list()
         self.fbank_buffer = list()
         for key in sorted(audio.keys()):
