@@ -13,59 +13,44 @@ Function speech_collate
 def speech_collate(batch, pad_val=0.0):
     r"""Puts each data field into a tensor with outer dimension batch size"""
 
-    if isinstance(batch[0], torch.Tensor):
+    # split features and keys
+    utt_keys = [
+        b[0] for b in batch
+    ]
 
-        # max seq length
-        seq_len = [b.size(0) for b in batch]
-        max_seq = max(seq_len)
+    utt_feats = [
+        b[1] for b in batch
+    ]
 
-        # pad to max length
-        batch = [
-            ConstantPad1d((0, int(max_seq - b.size(0))), value=pad_val)(b.transpose(0, 1)) for b in batch
-        ]
+    # batch utterance feat
+    utt_batch, seq_len = speech_collate(utt_feats)
 
-        # sort seq & get sorted indices
-        indices = torch.argsort(
-            torch.tensor(seq_len),
-            descending=True
-        )
-        seq_len.sort(reverse=True)
+    # max seq length
+    seq_len = [b.size(0) for b in batch]
+    max_seq = max(seq_len)
 
-        # sort batch (descending order) for torch.rnn compatibility
-        batch = [
-            batch[i] for i in indices
-        ]
+    # pad to max length
+    batch = [
+        ConstantPad1d((0, int(max_seq - b.size(0))), value=pad_val)(b.transpose(0, 1)) for b in batch
+    ]
 
-        batch = torch.stack(batch, 0)
+    # sort seq & get sorted indices
+    indices = torch.argsort(
+        torch.tensor(seq_len),
+        descending=True
+    )
+    seq_len.sort(reverse=True)
 
-        # (B, f, T) -> (B, T, f)
-        batch = batch.permute(0, 2, 1)
+    # sort batch (descending order) for torch.rnn compatibility
+    batch = [
+        batch[i] for i in indices
+    ]
 
-        # ret tensor batch & corresponding seq lengths
+    batch = torch.stack(batch, 0)
 
-        return batch, seq_len
+    # (B, f, T) -> (B, T, f)
+    batch = batch.permute(0, 2, 1)
 
-    elif isinstance(batch[0], tuple):
-
-        # split features and keys
-        utt_keys = [
-            b[0] for b in batch
-        ]
-
-        utt_feats = [
-            b[1] for b in batch
-        ]
-
-        # batch utterance feat
-        utt_batch, seq_len = speech_collate(utt_feats)
-
-        return utt_keys, utt_batch, cond_batch, seq_len
-
-    else:
-        err_msg = "mfcc collate requires batch contain tensors or [key, tensor] pairs, found {}"
-        raise TypeError((
-            err_msg.format(type(batch[0]))
-        ))
-
-    return
+    # ret tensor batch & corresponding seq lengths
+    return utt_keys, utt_batch, seq_len
 

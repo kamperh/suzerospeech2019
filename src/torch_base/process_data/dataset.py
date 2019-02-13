@@ -10,7 +10,6 @@ SpeechDataset:
 
         Args:
             speech_npz (string)   : numpy archive (.npz) containing MFCC or Filter bank data
-            ret_keys   (bool)     : set to True to return array of utt_keys
             transform  (callable) : optional transforms to be applied to feature data
 
 """
@@ -20,8 +19,7 @@ class SpeechDataset(Dataset):
 
     def __init__(self,
                  speech_npz,
-                 condition=False,
-                 return_keys=False, transform=None):
+                 transform=None):
 
         speech_npz = os.path.expanduser(speech_npz)
 
@@ -41,24 +39,29 @@ class SpeechDataset(Dataset):
         )
 
         self.transform = transform
-        self.return_keys = return_keys
 
-        if condition:
-            # Speaker Set
-            self.speakers = set([])
+        # Speakers Dict
+        speakers = list(
+            # remove duplicates
+            set([
+                utt_key[:utt_key.index("_")] for utt_key in self.keys
+            ])
+        )
 
-            for utt_key in self.keys:
-
-                # extract speaker i.d.
-                speaker_id = utt_key[:utt_key.index("_")]
-
-                # add speaker to set
-                self.speakers.add(speaker_id)
+        self.speakers = {
+            speakers[i]: i for i in range(len(speakers))
+        }
 
     def __getitem__(self, index):
 
         # extract utterance key
         utt_key = self.keys[index]
+
+        # extract speaker i.d.
+        speaker_id = utt_key[:utt_key.index("_")]
+
+        # integer value denoting speaker
+        speaker_int = self.speakers[speaker_id]
 
         # utterance features
         utt_feat = self.npz[utt_key]
@@ -67,35 +70,41 @@ class SpeechDataset(Dataset):
             # apply transforms
             utt_feat = self.transform(utt_feat)
 
-        if self.return_keys:
-            return utt_key, utt_feat
+        # assuming inputs are system targets
+        speech_dict = {
+            "utt_key": utt_key,
+            "inpt_feat": utt_feat,
+            "speaker_int": speaker_int
+        }
 
-        return utt_feat
+        return speech_dict
+
+    def get_num_speakers(self):
+        return len(self.speakers)
 
     def __len__(self):
         return len(self.keys)
 
 
 """
-ConversionSpeechDataset:
+TargetSpeechDataset:
 
     Iterable dataset for input -> target speech features (MFCC's to Filter Banks or vice versa).
 
         Args:
-            inpt_npz    (string)   : numpy archive (.npz) containing MFCC or Filter bank data (input)
-            target_npz  (string)   : numpy archive (.npz) containing MFCC or Filter bank data (target)
-            ret_keys    (bool)     : set to True to return array of utt_keys
-            transform   (callable) : optional transforms to be applied to feature data
+            inpt_npz         (string)   : numpy archive (.npz) containing MFCC or Filter bank data (input)
+            target_npz       (string)   : numpy archive (.npz) containing MFCC or Filter bank data (target)
+            inpt_transform   (callable) : optional transforms applied to input feature data
+            target_transform (callable) : optional transforms applied to target feature data
 
 """
 
 
-class ConversionSpeechDataset(Dataset):
+class TargetSpeechDataset(Dataset):
 
     def __init__(self,
                  inpt_npz,
                  target_npz,
-                 condition=False, return_keys=False,
                  inpt_transform=None, target_transform=None):
 
         # expand & check file locations
@@ -115,7 +124,7 @@ class ConversionSpeechDataset(Dataset):
             target_npz
         )
 
-        if not os.path.isfile(cond_npz):
+        if not os.path.isfile(target_npz):
             err_msg = "Specified file : {} does not exist!"
             raise FileNotFoundError(err_msg.format(target_npz))
         else:
@@ -127,52 +136,69 @@ class ConversionSpeechDataset(Dataset):
             self.inpt_npz.keys()
         )
 
-        self.return_keys = return_keys
+        # define speech transforms
         self.inpt_transform = inpt_transform
         self.target_transform = target_transform
 
-        # Dict of Speakers and their utterances
-        if condition:
-            # Speaker Set
-            self.speakers = set([])
+        self.speakers = set([])
 
-            for utt_key in self.keys:
+        # Speakers Dict
+        speakers = list(
+            # remove duplicates
+            set([
+                utt_key[:utt_key.index("_")] for utt_key in self.keys
+            ])
+        )
 
-                # extract speaker i.d.
-                speaker_id = utt_key[:utt_key.index("_")]
-
-                # add speaker to set
-                self.speakers.add(speaker_id)
+        self.speakers = {
+            speakers[i]: i for i in range(len(speakers))
+        }
 
     def __getitem__(self, index):
 
         # extract utterance key
         utt_key = self.keys[index]
 
+        # extract speaker i.d.
+        speaker_id = utt_key[:utt_key.index("_")]
+
+        # get speaker int
+        speaker_int = self.speakers[speaker_id]
+
         # input utterance features
-        inpt_utt = self.inpt_npz[
+        inpt_feat = self.inpt_npz[
             utt_key
         ]
 
         # target utterance features
-        target_utt = self.target_npz[
+        target_feat = self.target_npz[
             utt_key
         ]
 
-        if self.transform:
-            # apply transforms
-            inpt_utt = self.inpt_transform(
-                inpt_utt
+        if self.inpt_transform:
+            # apply input transforms
+            inpt_feat = self.inpt_transform(
+                inpt_feat
             )
 
-            target_utt = self.target_transform(
-                target_utt
+        if self.target_transform:
+            # apply target transforms
+            target_feat = self.target_transform(
+                target_feat
             )
 
-        if self.return_keys:
-            return utt_key, inpt_utt, target_utt
+        # speech Dict
+        speech_dict = {
+            "utt_key": utt_key,
+            "inpt_feat": inpt_feat,
+            "target_feat": target_feat,
+            "speaker_int": speaker_int
+        }
 
-        return inpt_utt, target_utt
+        return speech_dict
+
+    def get_num_speakers(self):
+        return len(self.speakers)
 
     def __len__(self):
         return len(self.keys)
