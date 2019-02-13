@@ -1,6 +1,6 @@
 # imports
 import numpy as np
-from .collate import speech_collate
+from collate import speech_collate
 from torch.utils.data.sampler import Sampler
 
 """
@@ -30,7 +30,7 @@ class BatchBucketSampler(Sampler):
 
         # get data lengths
         self.x_lengths = np.array([
-            x.size(0) for x in self.data_source
+            x["inpt_feat"].size(0) for x in self.data_source
         ])
 
         self.num_batches = len(self.x_lengths) // self.batch_size
@@ -92,3 +92,4 @@ class BatchBucketSampler(Sampler):
 
     def __len__(self):
         return len(self.data_source)
+

@@ -14,24 +14,31 @@ def speech_collate(batch, pad_val=0.0):
     r"""Puts each data field into a tensor with outer dimension batch size"""
 
     # split features and keys
-    utt_keys = [
-        b[0] for b in batch
-    ]
+    utt_keys = []
+    inpt_batch = []
+    target_batch = []
+    speaker_ints = []
 
-    utt_feats = [
-        b[1] for b in batch
-    ]
-
-    # batch utterance feat
-    utt_batch, seq_len = speech_collate(utt_feats)
+    for b in batch:
+        # append values
+        utt_keys.append(b["utt_key"])
+        inpt_batch.append(b["inpt_feat"])
+        if "target_feat" in b:
+            target_batch.append(b["target_feat"])
+        speaker_ints.append(b["speaker_int"])
 
     # max seq length
-    seq_len = [b.size(0) for b in batch]
+    seq_len = [
+        b.size(0) for b in inpt_batch
+    ]
     max_seq = max(seq_len)
 
     # pad to max length
-    batch = [
-        ConstantPad1d((0, int(max_seq - b.size(0))), value=pad_val)(b.transpose(0, 1)) for b in batch
+    inpt_batch = [
+        ConstantPad1d(
+            (0, int(max_seq - b.size(0))),
+            value=pad_val
+        )(b.transpose(0, 1)) for b in inpt_batch
     ]
 
     # sort seq & get sorted indices
@@ -42,15 +49,52 @@ def speech_collate(batch, pad_val=0.0):
     seq_len.sort(reverse=True)
 
     # sort batch (descending order) for torch.rnn compatibility
-    batch = [
-        batch[i] for i in indices
+    inpt_batch = [
+        inpt_batch[i] for i in indices
     ]
 
-    batch = torch.stack(batch, 0)
+    inpt_batch = torch.stack(
+        inpt_batch,
+        dim=0
+    )
 
     # (B, f, T) -> (B, T, f)
-    batch = batch.permute(0, 2, 1)
+    inpt_batch = inpt_batch.permute(0, 2, 1)
 
-    # ret tensor batch & corresponding seq lengths
-    return utt_keys, utt_batch, seq_len
+    # rearrange speaker ints and utt_keys to match batches
+    speaker_ints = torch.tensor([
+        speaker_ints[i] for i in indices
+    ])
 
+    utt_keys = [
+        utt_keys[i] for i in indices
+    ]
+
+    # Batch Dict
+    batch_dict = {
+        "utt_keys": utt_keys,
+        "input_batch": inpt_batch,
+        "speaker_ints": speaker_ints
+    }
+
+    if "target_feat" in batch[0]:
+        target_batch = [
+            ConstantPad1d(
+                (0, int(max_seq - b.size(0))),
+                value=pad_val
+            )(b.transpose(0, 1)) for b in target_batch
+        ]
+
+        target_batch = [
+            target_batch[i] for i in indices
+        ]
+
+        target_batch = torch.stack(
+            target_batch,
+            dim=0
+        )
+
+        # (B, f, T) -> (B, T, f)
+        batch_dict["target_batch"] = target_batch.permute(0, 2, 1)
+
+    return batch_dict
