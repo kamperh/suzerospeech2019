@@ -19,18 +19,19 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 class StackedRnnBase(nn.Module):
 
     def __init__(self,
-                 input_size,
+                 input_sizes,
                  hidden_sizes, mode="LSTM", bias=True,
                  bidirectional=False, batch_first=True):
 
         super(StackedRnnBase, self).__init__()
 
+        if len(input_sizes) != len(hidden_sizes):
+            err_msg = "Size mismatch between len(input_sizes) and len(hidden_sizes)"
+            raise ValueError(err_msg)
+
         self.num_layers = len(hidden_sizes)
 
         self.batch_first = batch_first
-
-        # layer input sizes
-        input_sizes = [input_size] + hidden_sizes[:-1]
 
         self.multilayer_rnn = nn.ModuleList([
             nn.RNNBase(
