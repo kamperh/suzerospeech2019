@@ -90,10 +90,17 @@ class Conv1DRnnCell(nn.Module):
 
         return x
 
-    def _gru_forward(self, x, h_prev):
+    def _gru_forward(self, x, h_prev=None):
 
         x = self.conv_in(x)
+
+        if not h_prev:
+            # init prev state
+            b, _, l_conv = x.size()
+            h_prev = self._init_hidden(b, l_conv)
+
         h = self.conv_h(h_prev)
+
         x_z, x_r, x_n = torch.split(x, self.hidden_dim, dim=1)
         h_z, h_r, h_n = torch.split(h, self.hidden_dim, dim=1)
 
@@ -105,12 +112,20 @@ class Conv1DRnnCell(nn.Module):
 
         return h_t
 
-    def _lstm_forward(self, x, h_prev):
-
-        h_prev, c_prev = h_prev
+    def _lstm_forward(self, x, h_prev=None):
 
         x = self.conv_in(x)
+
+        if not h_prev:
+            # init cell & prev state
+            b, _, l_conv = x.size()
+            h_prev = self._init_hidden(b, l_conv)
+            c_prev = self._init_hidden(b, l_conv)
+        else:
+            h_prev, c_prev = h_prev
+
         h = self.conv_h(h_prev)
+
         x_i, x_f, x_g, x_o = torch.split(x, self.hidden_dim, dim=1)
         h_i, h_f, h_g, h_o = torch.split(h, self.hidden_dim, dim=1)
 
@@ -126,9 +141,15 @@ class Conv1DRnnCell(nn.Module):
 
         return h_t, c_t
 
-    def _rnn_forward(self, x, h_prev):
+    def _rnn_forward(self, x, h_prev=None):
 
         x = self.conv_in(x)
+
+        if not h_prev:
+            # init prev state
+            b, _, l_conv = x.size()
+            h_prev = self._init_hidden(b, l_conv)
+
         h = self.conv_h(h_prev)
 
         # RNN logic
@@ -141,7 +162,7 @@ class Conv1DRnnCell(nn.Module):
         self.conv_h.reset_parameters()
         return
 
-    def init_hidden(self, batch_size, l):
+    def _init_hidden(self, batch_size, l):
         # init hidden state to zero
         h_0 = torch.zeros(batch_size, self.hidden_dim, l)
         return h_0.to(self.device)
