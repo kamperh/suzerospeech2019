@@ -36,7 +36,7 @@ parser.add_argument(
     metavar='SYSTEM',
     type=str,
     required=True,
-    choices=['MfccAuto'],
+    choices=['MfccAuto', 'CondMfccAuto'],
     help='SpeechCompression System'
 )
 
@@ -156,42 +156,6 @@ args = parser.parse_args()
 # TRAINING LOOP
 # ----------------------------------------------------------------------------------------------------------------------
 
-# GPU || CPU
-device = torch.device(
-    "cuda:0" if torch.cuda.is_available() else "cpu"
-)
-
-# Define System
-sys = None
-
-if args.system == 'MfccAuto':
-    # def network
-    sys = MfccAuto(
-        bnd=args.bottleneck_depth,
-        input_size=args.crop_height
-    )
-
-
-# model -> device
-sys.to(device)
-
-# Loss function
-criterion = MaskedLoss(
-    criterion=nn.MSELoss()
-)
-
-# Adam Optimizer
-opt = Adam(
-    sys.parameters(), args.learn_rate
-)
-
-# MultiStep scheduler
-scheduler = lr_scheduler.MultiStepLR(
-    optimizer=opt,
-    milestones=[30, 80, 140],
-    gamma=args.gamma
-)
-
 # check train, log and save locations
 log_loc = os.path.expanduser(args.log)
 
@@ -204,7 +168,7 @@ if not os.path.isdir(save_loc):
     raise NotADirectoryError('Save directory d.n.e')
 
 
-# Mfcc Dataset
+# Speech Dataset
 
 train_dataset = SpeechDataset(
     speech_npz=args.train,
@@ -229,7 +193,7 @@ valid_dataset = SpeechDataset(
 )
 
 
-# Mfcc DataLoader
+# Speech DataLoader
 
 train_dataLoader = BatchBucketSampler(
     data_source=train_dataset,
@@ -251,6 +215,48 @@ dataLoaders = {
     'valid': valid_dataLoader
 }
 
+# GPU || CPU
+device = torch.device(
+    "cuda:0" if torch.cuda.is_available() else "cpu"
+)
+
+# Define System
+sys = None
+
+if args.system == "MfccAuto":
+    # def network
+    sys = MfccAuto(
+        bnd=args.bottleneck_depth,
+        input_size=args.crop_height
+    )
+
+elif args.system == "CondMfccAuto":
+    # def network
+    sys = MfccAuto(
+        bnd=args.bottleneck_depth,
+        input_size=args.crop_height,
+        cond_speakers=train_dataset.get_num_speakers()
+    )
+
+# model -> device
+sys.to(device)
+
+# Loss function
+criterion = MaskedLoss(
+    criterion=nn.MSELoss()
+)
+
+# Adam Optimizer
+opt = Adam(
+    sys.parameters(), args.learn_rate
+)
+
+# MultiStep scheduler
+scheduler = lr_scheduler.MultiStepLR(
+    optimizer=opt,
+    milestones=[30, 80, 140],
+    gamma=args.gamma
+)
 
 # start epoch, time previously elapsed, best Loss
 t_prev = 0.0
@@ -323,14 +329,21 @@ for epoch in range(current_epoch, args.epochs + 1, 1):
         for i, data in enumerate(dataLoaders[phase], 0):
 
             # data -> device
-            inpt, seq_len = data
+            inpt = data["input_batch"]
             inpt = inpt.to(device)
 
             # zero model gradients
             opt.zero_grad()
 
             # forward
-            out, _ = sys(inpt, seq_len)
+            if args.system in ["CondMfccAuto"]:
+                out, _ = sys(
+                    inpt,
+                    data["seq_len"],
+                    data["speaker_ints"].to(device)
+                )
+            else:
+                out, _ = sys(inpt, data["seq_len"])
 
             # loss
             loss = criterion(out, target=inpt)

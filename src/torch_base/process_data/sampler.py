@@ -1,6 +1,6 @@
 # imports
 import numpy as np
-from collate import speech_collate
+from .collate import speech_collate
 from torch.utils.data.sampler import Sampler
 
 """

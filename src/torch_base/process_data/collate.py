@@ -73,6 +73,7 @@ def speech_collate(batch, pad_val=0.0):
     # Batch Dict
     batch_dict = {
         "utt_keys": utt_keys,
+        "seq_len": seq_len,
         "input_batch": inpt_batch,
         "speaker_ints": speaker_ints
     }

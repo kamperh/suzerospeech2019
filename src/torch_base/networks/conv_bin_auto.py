@@ -5,21 +5,28 @@ import torch.nn as nn
 from layers import Binarizer
 from layers import StackedRnnBase
 
-
 """
-MFCC GRU Autoencoder
+Convolutional Speech Binarizer
+
+    input  : Mfcc's / Filter-Banks
+    output : Mfcc's / Filter-Banks
     
+    Rnn type : GRU
+    Supports Speaker Conditioning
+
 """
 
 
-class MfccAuto(nn.Module):
+class ConvSpeechAuto(nn.Module):
 
-    def __init__(self, bnd,
+    def __init__(self,
+                 name, bnd,
                  input_size, cond_speakers=None):
 
-        super(MfccAuto, self).__init__()
+        super(ConvSpeechAuto, self).__init__()
 
-        self.name = "MfccAuto"
+        # def model name
+        self.name = name
 
         # bottle-neck depth
         self.bnd = bnd
@@ -39,22 +46,22 @@ class MfccAuto(nn.Module):
         )
 
         self.linear_encoder = nn.Sequential(
-                nn.Linear(
-                    in_features=512,
-                    out_features=self.bnd
-                ),
-                nn.Tanh()
+            nn.Linear(
+                in_features=512,
+                out_features=self.bnd
+            ),
+            nn.Tanh()
         )
 
         # Binarization Layer
         self.binarizer = Binarizer()
 
         self.linear_decoder = nn.Sequential(
-                nn.Linear(
-                    in_features=self.bnd,
-                    out_features=512
-                ),
-                nn.Tanh()
+            nn.Linear(
+                in_features=self.bnd,
+                out_features=512
+            ),
+            nn.Tanh()
         )
 
         if cond_speakers:

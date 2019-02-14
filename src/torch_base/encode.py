@@ -54,6 +54,14 @@ parser.add_argument(
     help='Training .npz file'
 )
 
+parser.add_argument(
+    '--speaker_cond',
+    '-sc',
+    metavar='SPEAKER_CONDITIONAL',
+    type=str,
+    help='Speaker on which to condition encodings'
+)
+
 args = parser.parse_args()
 
 # GPU || CPU
@@ -88,10 +96,19 @@ if sys_name == "MfccAuto":
         save_file=sys_file_loc
     )
 
-elif sys_name == "FbankAuto":
+elif sys_name == "CondMfccAuto":
 
     print(
         "System: {}".format(sys_name)
+    )
+
+    # def network
+    sys = MfccAuto(
+        bnd=bottle_neck,
+        input_size=13,
+        cond_speakers=102
+    ).load(
+        save_file=sys_file_loc
     )
 
 
@@ -122,8 +139,7 @@ input_dataset = SpeechDataset(
             t=2000,
             feat=13
         )
-    ]),
-    return_keys=True
+    ])
 )
 
 input_dataLoader = DataLoader(
@@ -131,6 +147,11 @@ input_dataLoader = DataLoader(
     batch_size=1,
     shuffle=False
 )
+
+
+# Speaker to condition on
+cond_speaker_int = torch.tensor([47])
+
 
 """
 multi_hot_2_one_hot function
@@ -186,15 +207,20 @@ for j, bit_code in enumerate(bin_codes, 0):
 for data in input_dataLoader:
 
     # Key and input feature
-    utt_key, inpt_tensor = data
-    utt_key = utt_key[0]
+    utt_key = data["utt_key"][0]
 
     # forward & encode
     with torch.no_grad():
         # run in inference mode
-        opt_tensor, bits_tensor = sys(
-            inpt_tensor.to(device)
-        )
+        if sys_name in ["CondMfccAuto"]:
+            opt_tensor, bits_tensor = sys(
+                data["inpt_feat"].to(device),
+                speaker_ids=cond_speaker_int.to(device)
+            )
+        else:
+            opt_tensor, bits_tensor = sys(
+                data["inpt_feat"].to(device)
+            )
 
     # Torch.Tensor -> Np arrays
     opt_np = Tensor2Numpy()(
