@@ -15,13 +15,16 @@ import tensorflow as tf
 import timeit
 
 
+from collections.abc import Iterable
+
+
 def train_fixed_epochs(n_epochs, optimizer, train_loss_tensor,
         train_feed_iterator, feed_placeholders, validation_loss_tensor=None,
         validation_feed_iterator=None, load_model_fn=None, save_model_fn=None,
         save_best_val_model_fn=None, config=None, epoch_offset=0):
     """
     Train a model for a fixed number of epochs.
-    
+
     Parameters
     ----------
     train_loss : Tensor
@@ -42,7 +45,7 @@ def train_fixed_epochs(n_epochs, optimizer, train_loss_tensor,
         If provided, save the best validation session to this file. If the
         `validation_loss_tensor` is a list of Tensors, the last value is taken
         as the current validation loss.
-    
+
     Return
     ------
     record_dict : dict
@@ -51,7 +54,7 @@ def train_fixed_epochs(n_epochs, optimizer, train_loss_tensor,
     """
 
     assert save_best_val_model_fn is None or validation_loss_tensor is not None
-    
+
     # Statistics
     record_dict = {}
     record_dict["epoch_time"] = []
@@ -59,29 +62,36 @@ def train_fixed_epochs(n_epochs, optimizer, train_loss_tensor,
     if validation_loss_tensor is not None:
         record_dict["validation_loss"] = []
         best_validation_loss = np.inf
-    
+
     print(datetime.now())
-    
+
+
     def feed_dict(vals):
-        return {key: val for key, val in zip(feed_placeholders, vals)}
+        vals_flat = []
+        for v in vals:
+            if isinstance(v, Iterable):
+                vals_flat.extend(v)
+            else:
+                vals_flat.append(v)
+        return {key: val for key, val in zip(feed_placeholders, vals_flat)}
 
     # Launch the graph
     saver = tf.train.Saver()
     if load_model_fn is None:
         init = tf.global_variables_initializer()
     with tf.Session(config=config) as session:
-        
+
         # Start or restore session
         if load_model_fn is None:
             session.run(init)
         else:
             saver.restore(session, load_model_fn)
-    
+
         # Train
         for i_epoch in range(n_epochs):
             print("Epoch {}:".format(epoch_offset + i_epoch)),
             start_time = timeit.default_timer()
-            
+
             # Train model
             train_losses = []
             if not isinstance(train_loss_tensor, (list, tuple)):
@@ -134,7 +144,7 @@ def train_fixed_epochs(n_epochs, optimizer, train_loss_tensor,
             end_time = timeit.default_timer()
             epoch_time = end_time - start_time
             record_dict["epoch_time"].append((i_epoch, epoch_time))
-            
+
             log = "{:.3f} sec".format(epoch_time)
             log += ", train loss: " + str(train_loss)
             if validation_loss is not None:
@@ -150,9 +160,9 @@ def train_fixed_epochs(n_epochs, optimizer, train_loss_tensor,
         if save_model_fn is not None:
             print("Writing: {}".format(save_model_fn))
             saver.save(session, save_model_fn)
-            
+
     total_time = sum([i[1] for i in record_dict["epoch_time"]])
     print("Training time: {:.3f} min".format(total_time/60.))
-    
+
     print(datetime.now())
     return record_dict

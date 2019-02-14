@@ -96,8 +96,8 @@ def build_multi_layer_rnn(
     TODO(rpeloff): function doc
     """
     x_output = x_input
-    for layer_index, units in enumerate(layer_units):
-        with tf.variable_scope(scope):
+    with tf.variable_scope(scope):
+        for layer_index, units in enumerate(layer_units):
             rnn_layer_scope = "rnn_layer_{}".format(layer_index)
             x_output, states = build_rnn(
                 x_output, x_lengths, units, rnn_cell, rnn_cell_kwargs,
