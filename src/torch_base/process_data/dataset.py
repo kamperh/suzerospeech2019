@@ -117,7 +117,7 @@ class TargetSpeechDataset(Dataset):
             raise FileNotFoundError(err_msg.format(inpt_npz))
         else:
             self.inpt_npz = np.load(
-                self.inpt_npz
+                inpt_npz
             )
 
         target_npz = os.path.expanduser(

@@ -16,8 +16,8 @@ from torch.optim import lr_scheduler
 
 # imports from torch base code
 from process_data import *
-from networks import MfccAuto
 from functions import MaskedLoss
+from networks import SpeechAuto, ConvSpeechAuto
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -36,7 +36,7 @@ parser.add_argument(
     metavar='SYSTEM',
     type=str,
     required=True,
-    choices=['MfccAuto', 'CondMfccAuto'],
+    choices=['SpeechAuto', 'ConvSpeechAuto'],
     help='SpeechCompression System'
 )
 
@@ -77,20 +77,37 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--train',
-    '-tf',
-    metavar='TRAIN_FILE',
+    '--train_input',
+    '-ti',
+    metavar='TRAIN_INPUT_FILE',
     type=str,
-    help='Training .npz file'
+    help='Training input .npz file'
 )
 
 parser.add_argument(
-    '--valid',
-    '-vf',
-    metavar='VALID_FILE',
+    '--train_target',
+    '-tt',
+    metavar='TRAIN_TARGET_FILE',
+    type=str,
+    help='Training target .npz file'
+)
+
+parser.add_argument(
+    '--valid_input',
+    '-vi',
+    metavar='VALID_INPUT_FILE',
     type=str,
     default='./',
-    help='Validation .npz file'
+    help='Validation input .npz file'
+)
+
+parser.add_argument(
+    '--valid_target',
+    '-vt',
+    metavar='VALID_TARGET_FILE',
+    type=str,
+    default='./',
+    help='Validation target .npz file'
 )
 
 parser.add_argument(
@@ -121,21 +138,39 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--crop_width',
-    '-c_w',
-    metavar='CROP_WIDTH',
+    '--crop_width_input',
+    '-cwi',
+    metavar='CROP_WIDTH_INPUT',
     type=int,
-    default=500,
+    default=100,
     help='Width to crop input'
 )
 
 parser.add_argument(
-    '--crop_height',
-    '-c_h',
-    metavar='CROP_HEIGHT',
+    '--crop_height_input',
+    '-chi',
+    metavar='CROP_HEIGHT_INPUT',
     type=int,
     default=13,
     help='Height to crop input'
+)
+
+parser.add_argument(
+    '--crop_width_target',
+    '-cwt',
+    metavar='CROP_WIDTH_TARGET',
+    type=int,
+    default=100,
+    help='Width to crop target'
+)
+
+parser.add_argument(
+    '--crop_height_target',
+    '-cht',
+    metavar='CROP_HEIGHT_TARGET',
+    type=int,
+    default=45,
+    help='Height to crop target'
 )
 
 parser.add_argument(
@@ -168,26 +203,42 @@ if not os.path.isdir(save_loc):
     raise NotADirectoryError('Save directory d.n.e')
 
 
-# Speech Dataset
+# Speech Datasets
 
-train_dataset = SpeechDataset(
-    speech_npz=args.train,
-    transform=tf.Compose([
+train_dataset = TargetSpeechDataset(
+    inpt_npz=args.train_input,
+    target_npz=args.train_target,
+    inpt_transform=tf.Compose([
         Numpy2Tensor(),
         CropSpeech(
-            t=args.crop_width,
-            feat=args.crop_height
+            t=args.crop_width_input,
+            feat=args.crop_height_input
+        )
+    ]),
+    target_transform=tf.Compose([
+        Numpy2Tensor(),
+        CropSpeech(
+            t=args.crop_width_target,
+            feat=args.crop_height_target
         )
     ])
 )
 
-valid_dataset = SpeechDataset(
-    speech_npz=args.valid,
-    transform=tf.Compose([
+valid_dataset = TargetSpeechDataset(
+    inpt_npz=args.valid_input,
+    target_npz=args.valid_target,
+    inpt_transform=tf.Compose([
         Numpy2Tensor(),
         CropSpeech(
-            t=args.crop_width,
-            feat=args.crop_height
+            t=args.crop_width_input,
+            feat=args.crop_height_input
+        )
+    ]),
+    target_transform=tf.Compose([
+        Numpy2Tensor(),
+        CropSpeech(
+            t=args.crop_width_target,
+            feat=args.crop_height_target
         )
     ])
 )
@@ -198,14 +249,14 @@ valid_dataset = SpeechDataset(
 train_dataLoader = BatchBucketSampler(
     data_source=train_dataset,
     batch_size=args.batch_size,
-    num_buckets=3,
+    num_buckets=5,
     shuffle_every_epoch=True
 )
 
 valid_dataLoader = BatchBucketSampler(
     data_source=valid_dataset,
     batch_size=args.batch_size,
-    num_buckets=3,
+    num_buckets=5,
     shuffle_every_epoch=True
 )
 
@@ -222,20 +273,34 @@ device = torch.device(
 
 # Define System
 sys = None
+embed_dim = 50
+num_speakers = train_dataset.get_num_speakers()
 
-if args.system == "MfccAuto":
+if args.system == "SpeechAuto":
     # def network
-    sys = MfccAuto(
+    sys = SpeechAuto(
+        name="SpeechAuto",
         bnd=args.bottleneck_depth,
-        input_size=args.crop_height
+        input_size=args.crop_height_input,
+        target_size=args.crop_height_target,
+        speaker_cond=(
+            embed_dim,
+            num_speakers
+        )
     )
 
-elif args.system == "CondMfccAuto":
+elif args.system == "ConvSpeechAuto":
     # def network
-    sys = MfccAuto(
+    sys = ConvSpeechAuto(
+        name="ConvSpeechAuto",
         bnd=args.bottleneck_depth,
-        input_size=args.crop_height,
-        cond_speakers=train_dataset.get_num_speakers()
+        input_size=args.crop_height_input,
+        target_size=args.crop_height_target,
+        gof=10,
+        speaker_cond=(
+            embed_dim,
+            num_speakers
+        )
     )
 
 # model -> device
@@ -336,17 +401,18 @@ for epoch in range(current_epoch, args.epochs + 1, 1):
             opt.zero_grad()
 
             # forward
-            if args.system in ["CondMfccAuto"]:
-                out, _ = sys(
-                    inpt,
-                    data["seq_len"],
-                    data["speaker_ints"].to(device)
-                )
-            else:
-                out, _ = sys(inpt, data["seq_len"])
+            out, _ = sys(
+                inpt,
+                x_len=data["seq_len"],
+                speaker_id=data["speaker_ints"].to(device)
+            )
 
             # loss
-            loss = criterion(out, target=inpt)
+            loss = criterion(
+                out,
+                target=data["target_batch"].to(device),
+                lengths=data["seq_len"]
+            )
 
             # running loss
             run_loss += loss.item()

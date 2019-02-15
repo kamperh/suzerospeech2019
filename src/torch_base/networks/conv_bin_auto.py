@@ -102,7 +102,7 @@ class ConvSpeechAuto(nn.Module):
             # Conv1D Decoder No Speaker Conditioning
             self.decoder = Conv1DRnn(
                 mode="GRU",
-                input_dim=[self.bnd],
+                input_dim=[64],
                 hidden_dim=[64],
                 kernel_i=[1], stride_i=[1],
                 kernel_h=[1], stride_h=[1],
@@ -126,7 +126,7 @@ class ConvSpeechAuto(nn.Module):
             # Conv1D Decoder No Speaker Conditioning
             self.decoder = Conv1DRnn(
                 mode="GRU",
-                input_dim=[self.bnd + embed_dim],
+                input_dim=[64 + embed_dim],
                 hidden_dim=[64],
                 kernel_i=[1], stride_i=[1],
                 kernel_h=[1], stride_h=[1],
@@ -152,33 +152,16 @@ class ConvSpeechAuto(nn.Module):
 
         )
 
-    def forward(self, x, speaker_id=None):
+    def forward(self, x, x_len=None, speaker_id=None):
 
-        # extract dimensions
-        batch_size, t, f = x.size()
-
-        # split into GOF
-        x = torch.stack(
-            torch.split(
-                x,
-                split_size_or_sections=self.gof,
-                dim=1
-            ),
-            dim=1
-        )
-
-        # (B, S, T, F) -> (B, S, F, T)
-        x = x.permute(0, 1, 3, 2)
+        # Feat -> GOF
+        x = self._feat2gof(x, self.gof)
 
         # Conv1D Rnn Encoder
         x = self.encoder(x)
 
-        # (B, S, F, T) -> (B, T, F) -> (B, F, T)
-        x = x.permute(0, 1, 3, 2)
-        x = x.contiguous().view(
-            batch_size, -1, x.size(3)
-        )
-        x = x.permute(0, 2, 1)
+        # GOF to single Feature
+        x = self._gof2feat(x)
 
         # Pre-Binarization Conv1D [-1, 1]
         x = self.enc_conv_bin(x)
@@ -192,33 +175,64 @@ class ConvSpeechAuto(nn.Module):
         # Depth-to-Space Unit
         x = self.depth_to_space(x)
 
-        #
-        x = x.permute(0, 2, 1)
+        if self.condition:
 
-        # split into GOF
-        x = torch.stack(
-            torch.split(
-                x,
-                split_size_or_sections=self.gof,
+            x = x.permute(0, 2, 1)
+
+            x = torch.stack([
+                torch.cat(
+                    [x[:, t], self.speaker_embed(speaker_id).squeeze(1)],
+                    dim=1
+                ) for t in range(x.size(1))],
                 dim=1
-            ),
-            dim=1
-        )
+            )
+        else:
+            x = x.permute(0, 2, 1)
+
+        # Feat_hat -> GOF_hat
+        x = self._feat2gof(x, self.gof)
 
         # Target Synthesis Conv1D Rnn Decoder
         x = self.decoder(x)
 
-        # (B, S, F, T) -> (B, T, F) -> (B, F, T)
-        x = x.permute(0, 1, 3, 2)
-        x = x.contiguous().view(
-            batch_size, -1, x.size(3)
-        )
-        x = x.permute(0, 2, 1)
+        # GOF to single Feature
+        x = self._gof2feat(x)
 
         # Conv Out
         x = self.conv_out(x)
 
+        # (B, F, T) -> (B, T, F)
+        x = x.permute(0, 2, 1)
+
         return x, b
+
+    @staticmethod
+    def _feat2gof(feat, gof_size):
+
+        # split into GOF (B, T, F) -> (B, GOF, F, T)
+        gof = torch.stack(
+            torch.split(
+                feat,
+                split_size_or_sections=gof_size,
+                dim=1
+            ),
+            dim=1
+        ).permute(0, 1, 3, 2)
+        return gof
+
+    @staticmethod
+    def _gof2feat(gof):
+        # (B, S, F, T) -> (B, T, F) -> (B, F, T)
+
+        batch_size, _, _, _ = gof.size()
+
+        feat = gof.permute(0, 1, 3, 2).contiguous()
+        feat = feat.view(
+            batch_size, -1, feat.size(3)
+        )
+        feat = feat.permute(0, 2, 1)
+
+        return feat
 
     def load(self, save_file):
 
@@ -236,7 +250,3 @@ class ConvSpeechAuto(nn.Module):
                 torch.load(save_file)
             )
         return self
-
-x = torch.randn(2, 10, 13).cuda()
-net = ConvSpeechAuto("", 10, 13, 15, gof=10, speaker_cond=None).cuda()
-y = net(x)

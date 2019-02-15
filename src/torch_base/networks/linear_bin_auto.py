@@ -12,36 +12,33 @@ MFCC GRU Autoencoder
 """
 
 
-class MfccAuto(nn.Module):
+class SpeechAuto(nn.Module):
 
-    def __init__(self, bnd,
-                 input_size, cond_speakers=None):
+    def __init__(self, name,
+                 bnd,
+                 input_size,
+                 target_size, speaker_cond=None):
 
-        super(MfccAuto, self).__init__()
+        super(SpeechAuto, self).__init__()
 
-        self.name = "MfccAuto"
+        self.name = name
 
         # bottle-neck depth
         self.bnd = bnd
 
-        self.speaker_cond = False
-
         # Encoder Network
         self.encoder = LinearRnnBase(
-            input_sizes=[
-                input_size, 64, 256
-            ],
-            hidden_sizes=[
-                64, 256, 512
-            ],
+            input_sizes=[input_size],
+            hidden_sizes=[64],
             mode="GRU"
 
         )
 
         self.linear_encoder = nn.Sequential(
                 nn.Linear(
-                    in_features=512,
-                    out_features=self.bnd
+                    in_features=64,
+                    out_features=self.bnd,
+                    bias=True
                 ),
                 nn.Tanh()
         )
@@ -52,47 +49,39 @@ class MfccAuto(nn.Module):
         self.linear_decoder = nn.Sequential(
                 nn.Linear(
                     in_features=self.bnd,
-                    out_features=512
+                    out_features=64,
+                    bias=True
                 ),
                 nn.Tanh()
         )
 
-        if cond_speakers:
+        if speaker_cond is not None:
 
             # apply speaker conditioning
-            self.name = "CondMfccAuto"
-            self.speaker_cond = True
-
-            # embedding dimension
-            embed_dim = 100
+            self.condition = True
+            embed_dim, num_speakers = speaker_cond
 
             self.speaker_embed = nn.Embedding(
-                num_embeddings=cond_speakers,
-                embedding_dim=embed_dim
+                embedding_dim=embed_dim,
+                num_embeddings=num_speakers,
             )
 
             # Decoder Network
             self.decoder = LinearRnnBase(
-                input_sizes=[
-                    512 + embed_dim, 512, 256, 64
-                ],
-                hidden_sizes=[
-                    512, 256, 64, input_size
-                ],
+                input_sizes=[64 + embed_dim],
+                hidden_sizes=[target_size],
                 mode="GRU"
             )
         else:
+            self.condition = False
+
             self.decoder = LinearRnnBase(
-                input_sizes=[
-                    512, 512, 256, 64
-                ],
-                hidden_sizes=[
-                    512, 256, 64, input_size
-                ],
+                input_sizes=[64],
+                hidden_sizes=[target_size],
                 mode="GRU"
             )
 
-    def forward(self, x, x_len=None, speaker_ids=None):
+    def forward(self, x, x_len=None, speaker_id=None):
 
         # RNN encoder
         e, h_e = self.encoder(x, x_len)
@@ -120,14 +109,14 @@ class MfccAuto(nn.Module):
             dim=1
         )
 
-        if self.speaker_cond:
+        if self.condition:
             # Concat Speaker Embedding
             d_b = torch.stack(
                 [
                     torch.cat(
                         [
                             d_b[:, t],
-                            self.speaker_embed(speaker_ids).squeeze(1)
+                            self.speaker_embed(speaker_id).squeeze(1)
                         ],
                         dim=1
                     ) for t in range(d_b.size(1))
@@ -139,7 +128,7 @@ class MfccAuto(nn.Module):
         d, h_d = self.decoder(d_b, x_len)
 
         # ret decoding & bits
-        return d, b[b != 0]
+        return d, b
 
     def load(self, save_file):
 

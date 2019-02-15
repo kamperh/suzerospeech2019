@@ -10,7 +10,7 @@ Function speech_collate
 """
 
 
-def speech_collate(batch, pad_val=0.0):
+def speech_collate(batch, pad_val=0.0, max_seq=None):
     r"""Puts each data field into a tensor with outer dimension batch size"""
 
     # split features and keys
@@ -31,7 +31,9 @@ def speech_collate(batch, pad_val=0.0):
     seq_len = [
         b.size(0) for b in inpt_batch
     ]
-    max_seq = max(seq_len)
+
+    if max_seq is None:
+        max_seq = max(seq_len)
 
     # pad to max length
     inpt_batch = [
