@@ -94,7 +94,7 @@ class Conv1DRnnCell(nn.Module):
 
         x = self.conv_in(x)
 
-        if not h_prev:
+        if h_prev is None:
             # init prev state
             b, _, l_conv = x.size()
             h_prev = self._init_hidden(b, l_conv)
@@ -116,7 +116,7 @@ class Conv1DRnnCell(nn.Module):
 
         x = self.conv_in(x)
 
-        if not h_prev:
+        if h_prev is None:
             # init cell & prev state
             b, _, l_conv = x.size()
             h_prev = self._init_hidden(b, l_conv)
@@ -145,7 +145,7 @@ class Conv1DRnnCell(nn.Module):
 
         x = self.conv_in(x)
 
-        if not h_prev:
+        if h_prev is None:
             # init prev state
             b, _, l_conv = x.size()
             h_prev = self._init_hidden(b, l_conv)

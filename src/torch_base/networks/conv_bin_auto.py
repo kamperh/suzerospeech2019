@@ -3,7 +3,7 @@ import os
 import torch
 import torch.nn as nn
 from layers import Binarizer
-from layers import StackedRnnBase
+from layers import Conv1DRnn
 
 """
 Convolutional Speech Binarizer
@@ -21,7 +21,8 @@ class ConvSpeechAuto(nn.Module):
 
     def __init__(self,
                  name, bnd,
-                 input_size, cond_speakers=None):
+                 input_size, target_size,
+                 gof=10, speaker_cond=None):
 
         super(ConvSpeechAuto, self).__init__()
 
@@ -31,24 +32,33 @@ class ConvSpeechAuto(nn.Module):
         # bottle-neck depth
         self.bnd = bnd
 
-        self.speaker_cond = False
+        # Group of Features GOF
+        self.gof = gof
 
         # Encoder Network
-        self.encoder = StackedRnnBase(
-            input_sizes=[
-                input_size, 64, 256
-            ],
-            hidden_sizes=[
-                64, 256, 512
-            ],
-            mode="GRU"
 
+        # (B, F, T) -> (B, F, T/2)
+        self.encoder = Conv1DRnn(
+            mode="GRU",
+            input_dim=[input_size],
+            hidden_dim=[64],
+            kernel_i=[3], stride_i=[2],
+            kernel_h=[1], stride_h=[1],
+            padding_i=[1], dilation_i=[1], groups_i=[1],
+            padding_h=[0], dilation_h=[1], groups_h=[1],
+            bias=True,
+            num_layers=1
         )
 
-        self.linear_encoder = nn.Sequential(
-            nn.Linear(
-                in_features=512,
-                out_features=self.bnd
+        # Pre-ConvBin Layer
+        self.enc_conv_bin = nn.Sequential(
+            nn.Conv1d(
+                in_channels=64,
+                out_channels=self.bnd,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                bias=True
             ),
             nn.Tanh()
         )
@@ -56,97 +66,159 @@ class ConvSpeechAuto(nn.Module):
         # Binarization Layer
         self.binarizer = Binarizer()
 
-        self.linear_decoder = nn.Sequential(
-            nn.Linear(
-                in_features=self.bnd,
-                out_features=512
+        # Post-ConvBin Layer
+        self.dec_conv_bin = nn.Sequential(
+            nn.Conv1d(
+                in_channels=self.bnd,
+                out_channels=64,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                bias=True
             ),
+
             nn.Tanh()
+
         )
 
-        if cond_speakers:
+        self.depth_to_space = nn.Sequential(
 
-            # apply speaker conditioning
-            self.name = "CondMfccAuto"
-            self.speaker_cond = True
+            # (B, F, T/2) -> (B, F, T)
+            nn.ConvTranspose1d(
+                in_channels=64,
+                out_channels=64,
+                kernel_size=2,
+                stride=2,
+                padding=0,
+                bias=True
+            ),
 
-            # embedding dimension
-            embed_dim = 100
+            nn.ReLU()
+        )
 
-            self.speaker_embed = nn.Embedding(
-                num_embeddings=cond_speakers,
-                embedding_dim=embed_dim
+        if speaker_cond is None:
+            self.condition = False
+
+            # Conv1D Decoder No Speaker Conditioning
+            self.decoder = Conv1DRnn(
+                mode="GRU",
+                input_dim=[self.bnd],
+                hidden_dim=[64],
+                kernel_i=[1], stride_i=[1],
+                kernel_h=[1], stride_h=[1],
+                padding_i=[1], dilation_i=[1], groups_i=[1],
+                padding_h=[0], dilation_h=[1], groups_h=[1],
+                bias=True,
+                num_layers=1
             )
 
-            # Decoder Network
-            self.decoder = StackedRnnBase(
-                input_sizes=[
-                    512 + embed_dim, 512, 256, 64
-                ],
-                hidden_sizes=[
-                    512, 256, 64, input_size
-                ],
-                mode="GRU"
-            )
         else:
-            self.decoder = StackedRnnBase(
-                input_sizes=[
-                    512, 512, 256, 64
-                ],
-                hidden_sizes=[
-                    512, 256, 64, input_size
-                ],
-                mode="GRU"
+
+            self.condition = True
+            embed_dim, n_speakers = speaker_cond
+
+            # Speaker Embedding Table
+            self.speaker_embed = nn.Embedding(
+                embedding_dim=embed_dim,
+                num_embeddings=n_speakers
             )
 
-    def forward(self, x, x_len=None, speaker_ids=None):
+            # Conv1D Decoder No Speaker Conditioning
+            self.decoder = Conv1DRnn(
+                mode="GRU",
+                input_dim=[self.bnd + embed_dim],
+                hidden_dim=[64],
+                kernel_i=[1], stride_i=[1],
+                kernel_h=[1], stride_h=[1],
+                padding_i=[1], dilation_i=[1], groups_i=[1],
+                padding_h=[0], dilation_h=[1], groups_h=[1],
+                bias=True,
+                num_layers=1
+            )
 
-        # RNN encoder
-        e, h_e = self.encoder(x, x_len)
+        # Output Conv1D
+        self.conv_out = nn.Sequential(
 
-        # Linear Encoding
-        e_b = torch.stack(
-            [
-                self.linear_encoder(
-                    e[:, t]
-                ) for t in range(e.size(1))
-            ],
-            dim=1
+            nn.Conv1d(
+                in_channels=64,
+                out_channels=target_size,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                bias=True
+            ),
+
+            nn.Tanh()
+
         )
 
-        # Binarization
-        b = self.binarizer(e_b)
+    def forward(self, x, speaker_id=None):
 
-        # Linear Decoding
-        d_b = torch.stack(
-            [
-                self.linear_decoder(
-                    b[:, t]
-                ) for t in range(b.size(1))
-            ],
-            dim=1
-        )
+        # extract dimensions
+        batch_size, t, f = x.size()
 
-        if self.speaker_cond:
-            # Concat Speaker Embedding
-            d_b = torch.stack(
-                [
-                    torch.cat(
-                        [
-                            d_b[:, t],
-                            self.speaker_embed(speaker_ids).squeeze(1)
-                        ],
-                        dim=1
-                    ) for t in range(d_b.size(1))
-                ],
+        # split into GOF
+        x = torch.stack(
+            torch.split(
+                x,
+                split_size_or_sections=self.gof,
                 dim=1
-            )
+            ),
+            dim=1
+        )
 
-        # RNN decoder
-        d, h_d = self.decoder(d_b, x_len)
+        # (B, S, T, F) -> (B, S, F, T)
+        x = x.permute(0, 1, 3, 2)
 
-        # ret decoding & bits
-        return d, b[b != 0]
+        # Conv1D Rnn Encoder
+        x = self.encoder(x)
+
+        # (B, S, F, T) -> (B, T, F) -> (B, F, T)
+        x = x.permute(0, 1, 3, 2)
+        x = x.contiguous().view(
+            batch_size, -1, x.size(3)
+        )
+        x = x.permute(0, 2, 1)
+
+        # Pre-Binarization Conv1D [-1, 1]
+        x = self.enc_conv_bin(x)
+
+        # Binarize [-1, 1] -> {1, -1}
+        b = self.binarizer(x)
+
+        # Post-Binarization Conv1D
+        x = self.dec_conv_bin(b)
+
+        # Depth-to-Space Unit
+        x = self.depth_to_space(x)
+
+        #
+        x = x.permute(0, 2, 1)
+
+        # split into GOF
+        x = torch.stack(
+            torch.split(
+                x,
+                split_size_or_sections=self.gof,
+                dim=1
+            ),
+            dim=1
+        )
+
+        # Target Synthesis Conv1D Rnn Decoder
+        x = self.decoder(x)
+
+        # (B, S, F, T) -> (B, T, F) -> (B, F, T)
+        x = x.permute(0, 1, 3, 2)
+        x = x.contiguous().view(
+            batch_size, -1, x.size(3)
+        )
+        x = x.permute(0, 2, 1)
+
+        # Conv Out
+        x = self.conv_out(x)
+
+        return x, b
 
     def load(self, save_file):
 
@@ -164,3 +236,7 @@ class ConvSpeechAuto(nn.Module):
                 torch.load(save_file)
             )
         return self
+
+x = torch.randn(2, 10, 13).cuda()
+net = ConvSpeechAuto("", 10, 13, 15, gof=10, speaker_cond=None).cuda()
+y = net(x)

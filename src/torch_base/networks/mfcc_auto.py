@@ -3,7 +3,7 @@ import os
 import torch
 import torch.nn as nn
 from layers import Binarizer
-from layers import StackedRnnBase
+from layers import LinearRnnBase
 
 
 """
@@ -27,7 +27,7 @@ class MfccAuto(nn.Module):
         self.speaker_cond = False
 
         # Encoder Network
-        self.encoder = StackedRnnBase(
+        self.encoder = LinearRnnBase(
             input_sizes=[
                 input_size, 64, 256
             ],
@@ -72,7 +72,7 @@ class MfccAuto(nn.Module):
             )
 
             # Decoder Network
-            self.decoder = StackedRnnBase(
+            self.decoder = LinearRnnBase(
                 input_sizes=[
                     512 + embed_dim, 512, 256, 64
                 ],
@@ -82,7 +82,7 @@ class MfccAuto(nn.Module):
                 mode="GRU"
             )
         else:
-            self.decoder = StackedRnnBase(
+            self.decoder = LinearRnnBase(
                 input_sizes=[
                     512, 512, 256, 64
                 ],

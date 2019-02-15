@@ -1,3 +1,4 @@
 # import layers
 from .binarize import Binarizer
-from .stacked_rnn_base import StackedRnnBase
+from .conv_rnn_base import Conv1DRnn
+from .linear_rnn_base import LinearRnnBase

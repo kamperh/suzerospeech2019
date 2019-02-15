@@ -4,6 +4,25 @@ import warnings
 import torch.nn as nn
 from .conv_rnn_cell import Conv1DRnnCell
 
+"""
+ Stacked RNN Base base code
+    
+    Args:
+        input_dim     (list)   : list of input channel dimensions
+        hidden_dim    (list)   : list of layer hidden channel dimensions
+        mode          (string) : type of 1D convolutional cell to use ['LSTM', 'GRU', 'RNN']
+        bias          (bool)   : include bias terms, default True
+        bidirectional (bool)   : set to True for bidirectional RNN layers
+        batch_first   (bool)   : (T, B, L) if False else (B, T, L)
+        num_layers    (int)    : number of stacked RNN layers
+        dropout       (float)  : dropout probability in range [0, 1]
+        
+        Conv1D parameters:
+        ------------------
+        kernel_i, stride_i, padding_i, dilation_i, groups_i
+        kernel_h, stride_h, padding_h, dilation_h, groups_h 
+"""
+
 
 class Conv1DRnn(nn.Module):
 
@@ -11,12 +30,14 @@ class Conv1DRnn(nn.Module):
                  mode,
                  input_dim,
                  hidden_dim,
-                 kernel_i, stride_i, padding_i, dilation_i, groups_i,
-                 kernel_h, stride_h, padding_h, dilation_h, groups_h,
-                 num_layers=1,
-                 bias=False,
-                 batch_first=True,
+                 kernel_i, stride_i, kernel_h, stride_h,
+                 padding_i, dilation_i, groups_i,
+                 padding_h, dilation_h, groups_h,
                  dropout=0,
+                 bias=False,
+                 device=None,
+                 num_layers=1,
+                 batch_first=True,
                  bidirectional=False):
 
         super(Conv1DRnn, self).__init__()
@@ -48,10 +69,12 @@ class Conv1DRnn(nn.Module):
                 mode,
                 input_dim[n],
                 self.hidden_dim[n],
-                *(kernel_i[n], stride_i[n], padding_i[n], dilation_i[n], groups_i[n]),
-                *(kernel_h[n], stride_h[n], padding_h[n], dilation_h[n], groups_h[n]),
-                bias=bias
-            ) for n in self.num_layers
+                *(kernel_i[n], stride_i[n], kernel_h[n], stride_h[n]),
+                *(padding_i[n], dilation_i[n], groups_i[n]),
+                *(padding_h[n], dilation_h[n], groups_h[n]),
+                bias=bias,
+                device=device
+            ) for n in range(self.num_layers)
         ])
 
         if bidirectional:
@@ -59,10 +82,12 @@ class Conv1DRnn(nn.Module):
                 Conv1DRnnCell(
                     input_dim[n],
                     self.hidden_dim[n],
-                    *(kernel_i[n], stride_i[n], padding_i[n], dilation_i[n], groups_i[n]),
-                    *(kernel_h[n], stride_h[n], padding_h[n], dilation_h[n], groups_h[n]),
-                    bias=bias
-                ) for n in self.num_layers
+                    *(kernel_i[n], stride_i[n], kernel_h[n], stride_h[n]),
+                    *(padding_i[n], dilation_i[n], groups_i[n]),
+                    *(padding_h[n], dilation_h[n], groups_h[n]),
+                    bias=bias,
+                    device=device
+                ) for n in range(self.num_layers)
             ])
 
     def forward(self, x):
@@ -95,12 +120,25 @@ class Conv1DRnn(nn.Module):
                     )
                     reverse_seq.append(r_ht)
 
+            if self.mode == "LSTM":
+                # discard cell states
+                forward_seq = [
+                    f[0] for f in forward_seq
+                ]
+
             x = torch.stack(
                 forward_seq,
                 dim=1
             )
 
             if self.bidirectional:
+
+                if self.mode == "LSTM":
+                    # discard cell states
+                    reverse_seq = [
+                        r[0] for r in reverse_seq
+                    ]
+
                 reverse_seq = torch.stack(
                     reverse_seq,
                     dim=1
@@ -117,7 +155,3 @@ class Conv1DRnn(nn.Module):
                 x = nn.Dropout(p=self.dropout)
 
         return x
-
-
-
-
