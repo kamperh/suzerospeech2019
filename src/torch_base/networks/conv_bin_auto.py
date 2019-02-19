@@ -2,8 +2,8 @@
 import os
 import torch
 import torch.nn as nn
-from layers import Binarizer
-from layers import Conv1DRnn
+from layers import Conv1DRnn, PixelShuffle1D, Binarizer
+
 
 """
 Convolutional Speech Binarizer
@@ -40,14 +40,14 @@ class ConvSpeechAuto(nn.Module):
         # (B, F, T) -> (B, F, T/2)
         self.encoder = Conv1DRnn(
             mode="GRU",
-            input_dim=[input_size],
-            hidden_dim=[64],
+            input_dim=[input_size, 64, 256, 512],
+            hidden_dim=[64, 256, 512, 512],
             kernel_i=[3], stride_i=[2],
             kernel_h=[1], stride_h=[1],
             padding_i=[1], dilation_i=[1], groups_i=[1],
             padding_h=[0], dilation_h=[1], groups_h=[1],
             bias=True,
-            num_layers=1
+            num_layers=4
         )
 
         # Pre-ConvBin Layer
@@ -70,7 +70,7 @@ class ConvSpeechAuto(nn.Module):
         self.dec_conv_bin = nn.Sequential(
             nn.Conv1d(
                 in_channels=self.bnd,
-                out_channels=64,
+                out_channels=128,
                 kernel_size=1,
                 stride=1,
                 padding=0,
@@ -79,21 +79,6 @@ class ConvSpeechAuto(nn.Module):
 
             nn.Tanh()
 
-        )
-
-        self.depth_to_space = nn.Sequential(
-
-            # (B, F, T/2) -> (B, F, T)
-            nn.ConvTranspose1d(
-                in_channels=64,
-                out_channels=64,
-                kernel_size=2,
-                stride=2,
-                padding=0,
-                bias=True
-            ),
-
-            nn.ReLU()
         )
 
         if speaker_cond is None:
@@ -136,6 +121,10 @@ class ConvSpeechAuto(nn.Module):
                 num_layers=1
             )
 
+        self.depth_to_space = PixelShuffle1D(
+            upscale_factor=2
+        )
+
         # Output Conv1D
         self.conv_out = nn.Sequential(
 
@@ -148,11 +137,16 @@ class ConvSpeechAuto(nn.Module):
                 bias=True
             ),
 
-            nn.Tanh()
+            nn.ReLU()
 
         )
 
     def forward(self, x, x_len=None, speaker_id=None):
+
+        t_seq = x.size(1)
+
+        # Dynamic pad
+        x = self._dynamic_pad(x)
 
         # Feat -> GOF
         x = self._feat2gof(x, self.gof)
@@ -204,7 +198,27 @@ class ConvSpeechAuto(nn.Module):
         # (B, F, T) -> (B, T, F)
         x = x.permute(0, 2, 1)
 
-        return x, b
+        # Crop any dynamic padding
+        x = x[:, :t_seq]
+
+        return x, b.permute(0, 2, 1)
+
+    def _dynamic_pad(self, x):
+
+        if x.size(1) % self.gof != 0:
+
+            pad_size = (x.size(1) // self.gof + 1) * self.gof - x.size(1)
+
+            # apply padding to right
+            x = nn.ConstantPad1d(
+                padding=(0, pad_size),
+                value=0
+            )(x.permute(0, 2, 1))
+
+            # (B, F, T) -> (B, T, F)
+            x = x.permute(0, 2, 1)
+
+        return x
 
     @staticmethod
     def _feat2gof(feat, gof_size):

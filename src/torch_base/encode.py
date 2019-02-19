@@ -16,7 +16,7 @@ import torchvision.transforms as tf
 from torch.utils.data import DataLoader
 
 # imports from torch base code
-from networks import MfccAuto
+from networks import SpeechAuto, ConvSpeechAuto
 from process_data import SpeechDataset, Numpy2Tensor, Tensor2Numpy, CropSpeech
 
 # Constants
@@ -74,39 +74,52 @@ sys_file_loc = os.path.expanduser(args.system_file)
 
 # Define System
 sys = None
-# def bottle-neck (1 x 128 one-hot -> 7 bits multi-hot)
-bottle_neck = 7
 
 if not os.path.isfile(sys_file_loc):
     raise FileNotFoundError("Specified System File D.N.E")
 
 sys_name = os.path.basename(sys_file_loc).split('.')[0]
 
-if sys_name == "MfccAuto":
+if sys_name == "SpeechAuto":
+
+    # (1 x 128 one-hot -> 7 bits multi-hot)
+    bottle_neck = 7
 
     print(
         "System: {}".format(sys_name)
     )
 
     # def network
-    sys = MfccAuto(
-        bnd=bottle_neck,
-        input_size=13
+    sys = SpeechAuto(
+        name="SpeechAuto",
+        bnd=7,
+        input_size=13,
+        target_size=45,
+        speaker_cond=(
+            50,
+            102
+        )
     ).load(
         save_file=sys_file_loc
     )
 
-elif sys_name == "CondMfccAuto":
+elif sys_name == "ConvSpeechAuto":
 
     print(
         "System: {}".format(sys_name)
     )
 
     # def network
-    sys = MfccAuto(
-        bnd=bottle_neck,
+    sys = ConvSpeechAuto(
+        name="ConvSpeechAuto",
+        bnd=14,
         input_size=13,
-        cond_speakers=102
+        target_size=45,
+        gof=10,
+        speaker_cond=(
+            50,
+            102
+        )
     ).load(
         save_file=sys_file_loc
     )
@@ -136,7 +149,7 @@ input_dataset = SpeechDataset(
     transform=tf.Compose([
         Numpy2Tensor(),
         CropSpeech(
-            t=2000,
+            t=-1,
             feat=13
         )
     ])
@@ -190,18 +203,19 @@ bar = Bar("Encoding Progress :", max=len(input_dataset))
 
 
 # all possible binary codes
-bin_codes = [
-    list(i) for i in itertools.product([0, 1], repeat=bottle_neck)
-]
+if sys_name is "SpeechAuto":
+    bin_codes = [
+        list(i) for i in itertools.product([0, 1], repeat=bottle_neck)
+    ]
 
-# create lookup-table
-for j, bit_code in enumerate(bin_codes, 0):
-    # multi-hot bit key
-    mh_bit_key = "".join(
-        map(str, bit_code)
-    )
-    # key -> symbol
-    lookup_table[mh_bit_key] = j
+    # create lookup-table
+    for j, bit_code in enumerate(bin_codes, 0):
+        # multi-hot bit key
+        mh_bit_key = "".join(
+            map(str, bit_code)
+        )
+        # key -> symbol
+        lookup_table[mh_bit_key] = j
 
 
 for data in input_dataLoader:
@@ -212,14 +226,9 @@ for data in input_dataLoader:
     # forward & encode
     with torch.no_grad():
         # run in inference mode
-        if sys_name in ["CondMfccAuto"]:
             opt_tensor, bits_tensor = sys(
                 data["inpt_feat"].to(device),
-                speaker_ids=cond_speaker_int.to(device)
-            )
-        else:
-            opt_tensor, bits_tensor = sys(
-                data["inpt_feat"].to(device)
+                speaker_id=cond_speaker_int.to(device)
             )
 
     # Torch.Tensor -> Np arrays
@@ -235,25 +244,27 @@ for data in input_dataLoader:
     bits_mh[bits_mh == -1] = 0
 
     # group bits per feat together
-    bits_mh = bits_mh.reshape(-1, bottle_neck)
+    if sys_name == "SpeechAuto":
+        bits_mh = bits_mh.reshape(-1, bottle_neck)
+        # convert bits
+        bits_oh = multi_2_one_hot(
+            bits_mh, lookup_table
+        )
+
+        bits_dict_oh[utt_key] = bits_oh
 
     # update feature dictionary
     feat_dict[utt_key] = opt_np
-
-    # convert bits
-    bits_oh = multi_2_one_hot(
-        bits_mh, lookup_table
-    )
-
-    bits_dict_oh[utt_key] = bits_oh
-    bits_dict_mh[utt_key] = bits_mh
+    bits_dict_mh[utt_key] = bits_mh[0]
 
     bar.next()
 
 # save Dictionaries
 np.savez_compressed(FEAT_NPZ, **feat_dict)
 np.savez_compressed(BITS_NPZ_MH, **bits_dict_mh)
-np.savez_compressed(BITS_NPZ_OH, **bits_dict_oh)
+
+if sys_name == "SpeechAuto":
+    np.savez_compressed(BITS_NPZ_OH, **bits_dict_oh)
 
 bar.finish()
 

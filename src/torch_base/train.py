@@ -275,6 +275,7 @@ device = torch.device(
 sys = None
 embed_dim = 50
 num_speakers = train_dataset.get_num_speakers()
+print("NUM Speakers: {}".format(num_speakers))
 
 if args.system == "SpeechAuto":
     # def network

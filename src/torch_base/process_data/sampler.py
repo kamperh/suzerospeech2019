@@ -20,12 +20,11 @@ Batch Bucket Sampling Class
 class BatchBucketSampler(Sampler):
 
     def __init__(self, data_source,
-                 batch_size, num_buckets,
-                 max_seq=None,
+                 batch_size,
+                 num_buckets,
                  shuffle_every_epoch=False):
 
         self.data_source = data_source
-        self.max_seq = max_seq
         self.batch_size = batch_size
         self.num_buckets = num_buckets
         self.shuffle_every_epoch = shuffle_every_epoch
@@ -79,7 +78,7 @@ class BatchBucketSampler(Sampler):
                 self.data_source[i] for i in batch_indices
             ]
 
-            batch = speech_collate(batch, max_seq=self.max_seq)
+            batch = speech_collate(batch)
 
             yield batch
 
