@@ -5,6 +5,7 @@ import torch.nn as nn
 Pixel Shuffle 1D
 
     increases Speech frame resolution (depth-to-space unit)
+    Rearranges elements (B, GOF, C, T) -> (B, GOF, C/r, T*r)
 
         Args:
             upscale_factor (int) : factor to increase spatial resolution and decrease channel depth by
@@ -24,19 +25,19 @@ class PixelShuffle1D(nn.Module):
     def forward(self, x):
 
         # extract dimension
-        batch_size, channels, in_length = x.size()
+        batch_size, gof_seq, channels, in_length = x.size()
         channels //= self.upscale_factor
 
         # new dimensions
         out_length = in_length * self.upscale_factor
 
         x = x.contiguous().view(
-            batch_size, channels, self.upscale_factor, in_length
+            batch_size, gof_seq, channels, self.upscale_factor, in_length
         )
 
-        x = x.permute(0, 1, 3, 2).contiguous()
+        x = x.permute(0, 1, 2, 4, 3).contiguous()
 
-        x = x.view(batch_size, channels, out_length)
+        x = x.view(batch_size, gof_seq, channels, out_length)
 
         return x
 

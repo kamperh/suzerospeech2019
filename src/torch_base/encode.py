@@ -1,11 +1,14 @@
 """
-Pytorch Encoding Script
+Pytorch Encoding Script for STE Binarization Networks
 
 Andre Nortje adnortje@gmail.com
 
 """
+# ----------------------------------------------------------------------------------------------------------------------
+# Preliminaries
+# ----------------------------------------------------------------------------------------------------------------------
 
-# general imports
+# General imports
 import os
 import torch
 import itertools
@@ -15,15 +18,44 @@ from progress.bar import Bar
 import torchvision.transforms as tf
 from torch.utils.data import DataLoader
 
-# imports from torch base code
+# Torch base code imports
 from networks import SpeechAuto, ConvSpeechAuto
 from process_data import SpeechDataset, Numpy2Tensor, Tensor2Numpy, CropSpeech
 
-# Constants
-# save to .npz archives
-BITS_NPZ_MH = "output_discrete_feats_multi_hot.npz"
-BITS_NPZ_OH = "output_discrete_feats_one_hot.npz"
+# Constant Values
+GOF = 10
+MFCC = 13
+EMBED_DIM = 50
+FILTERBANK = 45
+NUM_SPEAKERS = 102
+
+
+# File names (.npz archives)
 FEAT_NPZ = "output_feats.npz"
+BITS_NPZ_OH = "disc_feats_one_hot.npz"
+BITS_NPZ_MH = "disc_feats_multi_hot.npz"
+
+
+# Helper functions
+
+"""
+multi_hot_2_one_hot function
+
+    ref https://www.reddit.com/r/MachineLearning/comments/31fk7i/converting_target_indices_to_onehotvector/
+"""
+
+
+def multi_2_one_hot(multi_hot, lookup_dict, bottle_neck):
+    # multi-hot -> integer targets
+    int_targets = [
+        lookup_dict["".join(map(str, map(int, mh)))] for mh in multi_hot
+    ]
+
+    # int targets -> one hot
+    one_hot = np.eye(2 ** bottle_neck)[int_targets]
+
+    return one_hot
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Argument Parser
@@ -31,10 +63,10 @@ FEAT_NPZ = "output_feats.npz"
 
 # create Argument Parser
 parser = arg.ArgumentParser(
-    prog='Encoding Script:',
-    description='Encodes input using specified system and saves two .npz files namely: '
-                '1) output_discrete_feats.npz --> one-hot binary symbols '
-                '2) output_feats.npz --> feature reconstructions '
+    prog="Encoding Script:",
+    description="Encodes input using specified system and saves two .npz files namely: "
+                "1) output_discrete_feats.npz --> one-hot binary symbols "
+                "2) output_feats.npz --> feature reconstructions "
 )
 
 parser.add_argument(
@@ -64,88 +96,88 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Encoder Script
+# ----------------------------------------------------------------------------------------------------------------------
+
 # GPU || CPU
 device = torch.device(
     "cuda:0" if torch.cuda.is_available() else "cpu"
 )
 
-# system file location
-sys_file_loc = os.path.expanduser(args.system_file)
+# System Definition:
 
-# Define System
-sys = None
+# check file location
+system_file = os.path.expanduser(args.system_file)
 
-if not os.path.isfile(sys_file_loc):
+if not os.path.isfile(system_file):
     raise FileNotFoundError("Specified System File D.N.E")
 
-sys_name = os.path.basename(sys_file_loc).split('.')[0]
+# Define System Variables
+system = None
+bottleneck_depth = None
 
-if sys_name == "SpeechAuto":
+# extract system name
+system_name = os.path.basename(system_file).split('.')[0]
+
+if system_name == "SpeechAuto":
 
     # (1 x 128 one-hot -> 7 bits multi-hot)
-    bottle_neck = 7
+    bottleneck_depth = 7
 
-    print(
-        "System: {}".format(sys_name)
-    )
+    print("System: {}".format(system_name))
 
-    # def network
-    sys = SpeechAuto(
+    # define network architecture
+    system = SpeechAuto(
         name="SpeechAuto",
-        bnd=7,
-        input_size=13,
-        target_size=45,
+        bnd=bottleneck_depth,
+        input_size=MFCC,
+        target_size=FILTERBANK,
         speaker_cond=(
-            50,
-            102
+            EMBED_DIM,
+            NUM_SPEAKERS
         )
-    ).load(
-        save_file=sys_file_loc
-    )
+    ).load(save_file=system_file)
 
-elif sys_name == "ConvSpeechAuto":
+elif system_name == "ConvSpeechAuto":
 
-    print(
-        "System: {}".format(sys_name)
-    )
+    # bottleneck depth
+    bottleneck_depth = 14
+
+    print("System: {}".format(system_name))
 
     # def network
     sys = ConvSpeechAuto(
         name="ConvSpeechAuto",
-        bnd=14,
-        input_size=13,
-        target_size=45,
-        gof=10,
+        bnd=bottleneck_depth,
+        input_size=MFCC,
+        target_size=FILTERBANK,
+        gof=GOF,
         speaker_cond=(
-            50,
-            102
+            EMBED_DIM,
+            NUM_SPEAKERS
         )
-    ).load(
-        save_file=sys_file_loc
-    )
-
-
-# TODO: Add additional systems here once trained !!
+    ).load(save_file=system_file)
 
 else:
     err_msg = "Oops, we didn't train this : {}"
     raise ValueError(err_msg.format(args.system_file))
 
-# model -> device
-sys.to(device)
+# place model on device
+system.to(device)
 
-# model -> inference mode
-sys.train(False)
+# inference mode
+system.train(False)
 
-# Dataset and DataLoader Definition
+# Dataset and DataLoader Definition:
 
-inpt_file_loc = os.path.expanduser(args.input_file)
+input_file = os.path.expanduser(args.input_file)
 
-if not os.path.isfile(inpt_file_loc):
-    raise FileNotFoundError("Specified Input File D.N.E")
+if not os.path.isfile(input_file):
+    raise FileNotFoundError("Specified input file D.N.E")
 
 input_dataset = SpeechDataset(
-    speech_npz=inpt_file_loc,
+    speech_npz=input_file,
     transform=tf.Compose([
         Numpy2Tensor(),
         CropSpeech(
@@ -162,109 +194,104 @@ input_dataLoader = DataLoader(
 )
 
 
-# Speaker to condition on
-cond_speaker_int = torch.tensor([47])
+# Define Speaker to Condition on:
 
+# check speaker embedding exists
+if args.speaker_cond not in input_dataset.speakers:
+    err_msg = "Speaker {}, D.N.E!"
+    raise KeyError(
+        err_msg.format(args.speaker_cond)
+    )
 
-"""
-multi_hot_2_one_hot function
-    
-    ref https://www.reddit.com/r/MachineLearning/comments/31fk7i/converting_target_indices_to_onehotvector/
-"""
-
-
-def multi_2_one_hot(multi_hot, lookup_dict):
-
-    # multi-hot -> integer targets
-    int_targets = [
-        lookup_dict["".join(map(str, map(int, mh)))] for mh in multi_hot
+# get speaker int
+cond_speaker_int = torch.tensor(
+    [
+        input_dataset.speakers[args.speaker_cond]
     ]
+).to(device)
 
-    # int targets -> one hot
-    one_hot = np.eye(2**bottle_neck)[int_targets]
+# Start Encoding
 
-    return one_hot
+# display system name and progress bar
+print("\nEncoding using : " + system_name)
+print("---------------------------------")
 
+# init progress bar
+bar = Bar(
+    "Encoding Progress :", max=len(input_dataset)
+)
 
-# display system
-print("\nEncoding using : " + sys_name)
-print("------------------------------")
-
-# encoded feat dict
+# define encoded feature, multi-hot and one-hot dictionaries
 feat_dict = {}
 bits_dict_mh = {}
 bits_dict_oh = {}
 
-# binary code lookup table
-lookup_table = {}
+# Binary code lookup table
+bin_lookup = {}
 
-# init progress bar
-bar = Bar("Encoding Progress :", max=len(input_dataset))
+bin_codes = [
+    list(i) for i in itertools.product([0, 1], repeat=bottleneck_depth)
+]
+
+for j, bit_code in enumerate(bin_codes, 0):
+    # multi-hot bit key
+    mh_bit_key = "".join(
+        map(str, bit_code)
+    )
+
+    # key : symbol
+    bin_lookup[mh_bit_key] = j
 
 
-# all possible binary codes
-if sys_name is "SpeechAuto":
-    bin_codes = [
-        list(i) for i in itertools.product([0, 1], repeat=bottle_neck)
-    ]
-
-    # create lookup-table
-    for j, bit_code in enumerate(bin_codes, 0):
-        # multi-hot bit key
-        mh_bit_key = "".join(
-            map(str, bit_code)
-        )
-        # key -> symbol
-        lookup_table[mh_bit_key] = j
-
+# Encoding loop
 
 for data in input_dataLoader:
 
     # Key and input feature
     utt_key = data["utt_key"][0]
+    inpt_feat = data["inpt_feat"].to(device)
 
-    # forward & encode
+    # forward & encode (inference mode)
     with torch.no_grad():
-        # run in inference mode
-            opt_tensor, bits_tensor = sys(
-                data["inpt_feat"].to(device),
-                speaker_id=cond_speaker_int.to(device)
-            )
+        opt_tensor, bits_tensor = system(
+            inpt_feat,
+            speaker_id=cond_speaker_int
+        )
 
-    # Torch.Tensor -> Np arrays
+    # to CPU
+    bits_tensor = bits_tensor[0].cpu()
+    opt_tensor = opt_tensor[0].cpu()
+
+    # Torch.Tensor -> Numpy array
     opt_np = Tensor2Numpy()(
-        opt_tensor.squeeze(0).cpu()
+        opt_tensor
     )
-
     bits_mh = Tensor2Numpy()(
-        bits_tensor.cpu()
+        bits_tensor
     )
 
     # [-1, 1] -> [0, 1]
     bits_mh[bits_mh == -1] = 0
 
-    # group bits per feat together
-    if sys_name == "SpeechAuto":
-        bits_mh = bits_mh.reshape(-1, bottle_neck)
-        # convert bits
-        bits_oh = multi_2_one_hot(
-            bits_mh, lookup_table
-        )
+    # multi-hot to one-hot
+    bits_oh = multi_2_one_hot(
+        bits_mh,
+        bin_lookup,
+        bottle_neck=bottleneck_depth
+    )
 
-        bits_dict_oh[utt_key] = bits_oh
-
-    # update feature dictionary
+    # Update Feature Dictionaries
     feat_dict[utt_key] = opt_np
-    bits_dict_mh[utt_key] = bits_mh[0]
+    bits_dict_mh[utt_key] = bits_mh
+    bits_dict_oh[utt_key] = bits_oh
 
+    # increment progress bar
     bar.next()
 
 # save Dictionaries
 np.savez_compressed(FEAT_NPZ, **feat_dict)
+np.savez_compressed(BITS_NPZ_OH, **bits_dict_oh)
 np.savez_compressed(BITS_NPZ_MH, **bits_dict_mh)
-
-if sys_name == "SpeechAuto":
-    np.savez_compressed(BITS_NPZ_OH, **bits_dict_oh)
 
 bar.finish()
 

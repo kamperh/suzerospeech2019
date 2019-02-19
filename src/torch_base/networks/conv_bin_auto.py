@@ -12,7 +12,7 @@ Convolutional Speech Binarizer
     output : Mfcc's / Filter-Banks
     
     Rnn type : GRU
-    Supports Speaker Conditioning
+    Offers Speaker Conditioning Support
 
 """
 
@@ -37,23 +37,23 @@ class ConvSpeechAuto(nn.Module):
 
         # Encoder Network
 
-        # (B, F, T) -> (B, F, T/2)
+        # (B, F, T) -> (B, F, T/8)
         self.encoder = Conv1DRnn(
             mode="GRU",
-            input_dim=[input_size, 64, 256, 512],
-            hidden_dim=[64, 256, 512, 512],
-            kernel_i=[3], stride_i=[2],
-            kernel_h=[1], stride_h=[1],
-            padding_i=[1], dilation_i=[1], groups_i=[1],
-            padding_h=[0], dilation_h=[1], groups_h=[1],
+            input_dim=[input_size, 64, 256],
+            hidden_dim=[64, 256, 512],
+            kernel_i=[3, 3, 3], stride_i=[2, 2, 2],
+            kernel_h=[1, 1, 1], stride_h=[1, 1, 1],
+            padding_i=[1, 1, 1], dilation_i=[1, 1, 1], groups_i=[1, 1, 1],
+            padding_h=[0, 0, 0], dilation_h=[1, 1, 1], groups_h=[1, 1, 1],
             bias=True,
-            num_layers=4
+            num_layers=3
         )
 
         # Pre-ConvBin Layer
         self.enc_conv_bin = nn.Sequential(
             nn.Conv1d(
-                in_channels=64,
+                in_channels=512,
                 out_channels=self.bnd,
                 kernel_size=1,
                 stride=1,
@@ -70,7 +70,7 @@ class ConvSpeechAuto(nn.Module):
         self.dec_conv_bin = nn.Sequential(
             nn.Conv1d(
                 in_channels=self.bnd,
-                out_channels=128,
+                out_channels=512,
                 kernel_size=1,
                 stride=1,
                 padding=0,
@@ -82,23 +82,12 @@ class ConvSpeechAuto(nn.Module):
         )
 
         if speaker_cond is None:
+            # don't condition
             self.condition = False
-
-            # Conv1D Decoder No Speaker Conditioning
-            self.decoder = Conv1DRnn(
-                mode="GRU",
-                input_dim=[64],
-                hidden_dim=[64],
-                kernel_i=[1], stride_i=[1],
-                kernel_h=[1], stride_h=[1],
-                padding_i=[1], dilation_i=[1], groups_i=[1],
-                padding_h=[0], dilation_h=[1], groups_h=[1],
-                bias=True,
-                num_layers=1
-            )
+            embed_dim = 0
 
         else:
-
+            # create speaker embedding
             self.condition = True
             embed_dim, n_speakers = speaker_cond
 
@@ -108,21 +97,56 @@ class ConvSpeechAuto(nn.Module):
                 num_embeddings=n_speakers
             )
 
-            # Conv1D Decoder No Speaker Conditioning
-            self.decoder = Conv1DRnn(
+        self.decoder = nn.Sequential(
+
+            Conv1DRnn(
                 mode="GRU",
-                input_dim=[64 + embed_dim],
-                hidden_dim=[64],
+                input_dim=[512 + embed_dim],
+                hidden_dim=[512],
                 kernel_i=[1], stride_i=[1],
                 kernel_h=[1], stride_h=[1],
                 padding_i=[1], dilation_i=[1], groups_i=[1],
                 padding_h=[0], dilation_h=[1], groups_h=[1],
                 bias=True,
                 num_layers=1
+            ),
+
+            PixelShuffle1D(
+                upscale_factor=2
+            ),
+
+            Conv1DRnn(
+                mode="GRU",
+                input_dim=[256],
+                hidden_dim=[512],
+                kernel_i=[1], stride_i=[1],
+                kernel_h=[1], stride_h=[1],
+                padding_i=[1], dilation_i=[1], groups_i=[1],
+                padding_h=[0], dilation_h=[1], groups_h=[1],
+                bias=True,
+                num_layers=1
+            ),
+
+            PixelShuffle1D(
+                upscale_factor=2
+            ),
+
+            Conv1DRnn(
+                mode="GRU",
+                input_dim=[256],
+                hidden_dim=[128],
+                kernel_i=[1], stride_i=[1],
+                kernel_h=[1], stride_h=[1],
+                padding_i=[1], dilation_i=[1], groups_i=[1],
+                padding_h=[0], dilation_h=[1], groups_h=[1],
+                bias=True,
+                num_layers=1
+            ),
+
+            PixelShuffle1D(
+                upscale_factor=2
             )
 
-        self.depth_to_space = PixelShuffle1D(
-            upscale_factor=2
         )
 
         # Output Conv1D
@@ -166,9 +190,6 @@ class ConvSpeechAuto(nn.Module):
         # Post-Binarization Conv1D
         x = self.dec_conv_bin(b)
 
-        # Depth-to-Space Unit
-        x = self.depth_to_space(x)
-
         if self.condition:
 
             x = x.permute(0, 2, 1)
@@ -186,7 +207,7 @@ class ConvSpeechAuto(nn.Module):
         # Feat_hat -> GOF_hat
         x = self._feat2gof(x, self.gof)
 
-        # Target Synthesis Conv1D Rnn Decoder
+        # Target Synthesis Conv1D Rnn Decoder with PixelShuffle
         x = self.decoder(x)
 
         # GOF to single Feature
@@ -198,7 +219,7 @@ class ConvSpeechAuto(nn.Module):
         # (B, F, T) -> (B, T, F)
         x = x.permute(0, 2, 1)
 
-        # Crop any dynamic padding
+        # Crop out any dynamic padding
         x = x[:, :t_seq]
 
         return x, b.permute(0, 2, 1)
@@ -232,6 +253,7 @@ class ConvSpeechAuto(nn.Module):
             ),
             dim=1
         ).permute(0, 1, 3, 2)
+
         return gof
 
     @staticmethod
@@ -255,8 +277,8 @@ class ConvSpeechAuto(nn.Module):
         )
 
         if not os.path.isfile(save_file):
-            err_msg = "{} is not a valid file location"
-            raise ValueError(
+            err_msg = "{} file location D.N.E"
+            raise FileNotFoundError(
                 err_msg.format(save_file)
             )
         else:
