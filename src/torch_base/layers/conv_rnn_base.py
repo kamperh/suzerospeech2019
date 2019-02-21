@@ -34,8 +34,7 @@ class Conv1DRnn(nn.Module):
                  padding_i, dilation_i, groups_i,
                  padding_h, dilation_h, groups_h,
                  dropout=0,
-                 bias=False,
-                 device=None,
+                 bias=True,
                  num_layers=1,
                  batch_first=True,
                  bidirectional=False):
@@ -72,8 +71,7 @@ class Conv1DRnn(nn.Module):
                 *(kernel_i[n], stride_i[n], kernel_h[n], stride_h[n]),
                 *(padding_i[n], dilation_i[n], groups_i[n]),
                 *(padding_h[n], dilation_h[n], groups_h[n]),
-                bias=bias,
-                device=device
+                bias=bias
             ) for n in range(self.num_layers)
         ])
 
@@ -85,8 +83,7 @@ class Conv1DRnn(nn.Module):
                     *(kernel_i[n], stride_i[n], kernel_h[n], stride_h[n]),
                     *(padding_i[n], dilation_i[n], groups_i[n]),
                     *(padding_h[n], dilation_h[n], groups_h[n]),
-                    bias=bias,
-                    device=device
+                    bias=bias
                 ) for n in range(self.num_layers)
             ])
 
@@ -116,7 +113,7 @@ class Conv1DRnn(nn.Module):
 
                 if self.bidirectional:
                     r_ht = self.rnn_cells_reverse[n](
-                        x[:, (t_seq - t - 1), :, :, :], r_ht
+                        x[:, (t_seq - t - 1), :, :], r_ht
                     )
                     reverse_seq.append(r_ht)
 
@@ -126,10 +123,7 @@ class Conv1DRnn(nn.Module):
                     f[0] for f in forward_seq
                 ]
 
-            x = torch.stack(
-                forward_seq,
-                dim=1
-            )
+            x = torch.stack(forward_seq, dim=1)
 
             if self.bidirectional:
 
@@ -139,10 +133,7 @@ class Conv1DRnn(nn.Module):
                         r[0] for r in reverse_seq
                     ]
 
-                reverse_seq = torch.stack(
-                    reverse_seq,
-                    dim=1
-                )
+                reverse_seq = torch.stack(reverse_seq, dim=1)
 
                 # concat reverse and forward outputs
                 x = torch.cat(

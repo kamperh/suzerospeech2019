@@ -19,13 +19,13 @@ import torchvision.transforms as tf
 from torch.utils.data import DataLoader
 
 # Torch base code imports
-from networks import SpeechAuto, ConvSpeechAuto
+from networks import LinearRnnSpeechAuto, ConvSpeechAuto, ConvRnnSpeechAuto
 from process_data import SpeechDataset, Numpy2Tensor, Tensor2Numpy, CropSpeech
 
 # Constant Values
-GOF = 10
+GOF = 8
 MFCC = 13
-EMBED_DIM = 50
+EMBED_DIM = 100
 FILTERBANK = 45
 NUM_SPEAKERS = 102
 
@@ -120,7 +120,7 @@ bottleneck_depth = None
 # extract system name
 system_name = os.path.basename(system_file).split('.')[0]
 
-if system_name == "SpeechAuto":
+if system_name == "LinearRnnSpeechAuto":
 
     # (1 x 128 one-hot -> 7 bits multi-hot)
     bottleneck_depth = 7
@@ -128,7 +128,7 @@ if system_name == "SpeechAuto":
     print("System: {}".format(system_name))
 
     # define network architecture
-    system = SpeechAuto(
+    system = LinearRnnSpeechAuto(
         name="SpeechAuto",
         bnd=bottleneck_depth,
         input_size=MFCC,
@@ -142,12 +142,31 @@ if system_name == "SpeechAuto":
 elif system_name == "ConvSpeechAuto":
 
     # bottleneck depth
-    bottleneck_depth = 14
+    bottleneck_depth = 56
 
     print("System: {}".format(system_name))
 
     # def network
     sys = ConvSpeechAuto(
+        name="ConvSpeechAuto",
+        bnd=bottleneck_depth,
+        input_size=MFCC,
+        target_size=FILTERBANK,
+        speaker_cond=(
+            EMBED_DIM,
+            NUM_SPEAKERS
+        )
+    ).load(save_file=system_file)
+
+elif system_name == "ConvRnnSpeechAuto":
+
+    # bottleneck depth
+    bottleneck_depth = 56
+
+    print("System: {}".format(system_name))
+
+    # def network
+    sys = ConvRnnSpeechAuto(
         name="ConvSpeechAuto",
         bnd=bottleneck_depth,
         input_size=MFCC,
@@ -158,6 +177,7 @@ elif system_name == "ConvSpeechAuto":
             NUM_SPEAKERS
         )
     ).load(save_file=system_file)
+
 
 else:
     err_msg = "Oops, we didn't train this : {}"
@@ -178,13 +198,7 @@ if not os.path.isfile(input_file):
 
 input_dataset = SpeechDataset(
     speech_npz=input_file,
-    transform=tf.Compose([
-        Numpy2Tensor(),
-        CropSpeech(
-            t=-1,
-            feat=13
-        )
-    ])
+    transform=Numpy2Tensor()
 )
 
 input_dataLoader = DataLoader(

@@ -20,10 +20,11 @@ class CropSpeech(object):
         self.t = t
         self.f = feat
 
-    def __call__(self, mfcc):
-        # Np -> Torch.Tensor
-        mfcc = mfcc[0:self.t, 0:self.f]
-        return mfcc
+    def __call__(self, speech):
+
+        speech = speech[:self.t, 0:self.f]
+
+        return speech
 
     def __repr__(self):
         return self.__class__.__name__

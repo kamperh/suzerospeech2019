@@ -22,17 +22,17 @@ class MaskedLoss(nn.Module):
 
     def forward(self, model_output, target, lengths):
 
-        output, _ = pack_padded_sequence(
+        output = pack_padded_sequence(
             model_output,
             lengths,
             batch_first=True
-        )
+        ).data
 
-        target, _ = pack_padded_sequence(
+        target = pack_padded_sequence(
             target,
             lengths,
             batch_first=True
-        )
+        ).data
 
         # loss on masked values
         loss = self.criterion(

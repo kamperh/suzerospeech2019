@@ -7,19 +7,19 @@ from layers import LinearRnnBase
 
 
 """
-MFCC GRU Autoencoder
+Linear Rnn Speech Autoencoder
     
 """
 
 
-class SpeechAuto(nn.Module):
+class LinearRnnSpeechAuto(nn.Module):
 
     def __init__(self, name,
                  bnd,
                  input_size,
                  target_size, speaker_cond=None):
 
-        super(SpeechAuto, self).__init__()
+        super(LinearRnnSpeechAuto, self).__init__()
 
         self.name = name
 
@@ -28,18 +28,19 @@ class SpeechAuto(nn.Module):
 
         # Encoder Network
         self.encoder = LinearRnnBase(
-            input_sizes=[input_size],
-            hidden_sizes=[64],
+            input_sizes=[input_size, 64, 256],
+            hidden_sizes=[64, 256, 512],
             mode="GRU"
 
         )
 
         self.linear_encoder = nn.Sequential(
                 nn.Linear(
-                    in_features=64,
+                    in_features=512,
                     out_features=self.bnd,
                     bias=True
                 ),
+
                 nn.Tanh()
         )
 
@@ -49,7 +50,7 @@ class SpeechAuto(nn.Module):
         self.linear_decoder = nn.Sequential(
                 nn.Linear(
                     in_features=self.bnd,
-                    out_features=64,
+                    out_features=512,
                     bias=True
                 ),
                 nn.Tanh()
@@ -66,20 +67,16 @@ class SpeechAuto(nn.Module):
                 num_embeddings=num_speakers,
             )
 
-            # Decoder Network
-            self.decoder = LinearRnnBase(
-                input_sizes=[64 + embed_dim],
-                hidden_sizes=[target_size],
-                mode="GRU"
-            )
         else:
             self.condition = False
+            embed_dim = 0
 
-            self.decoder = LinearRnnBase(
-                input_sizes=[64],
-                hidden_sizes=[target_size],
-                mode="GRU"
-            )
+        # Decoder Network
+        self.decoder = LinearRnnBase(
+            input_sizes=[512 + embed_dim, 256, 128, 64],
+            hidden_sizes=[256, 128, 64, target_size],
+            mode="GRU"
+        )
 
     def forward(self, x, x_len=None, speaker_id=None):
 

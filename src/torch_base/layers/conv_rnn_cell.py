@@ -30,7 +30,7 @@ class Conv1DRnnCell(nn.Module):
                  kernel_i, stride_i, kernel_h, stride_h,
                  padding_i=0, dilation_i=1, groups_i=1,
                  padding_h=0, dilation_h=1, groups_h=1,
-                 device=None, bias=True):
+                 bias=True):
 
         super(Conv1DRnnCell, self).__init__()
 
@@ -69,14 +69,6 @@ class Conv1DRnnCell(nn.Module):
             bias=bias
         )
 
-        # GPU || CPU
-        if not device:
-            self.device = torch.device(
-                "cuda:0" if torch.cuda.is_available() else "cpu"
-            )
-        else:
-            self.device = device
-
     def forward(self, x, h_prev):
 
         if self.mode == "GRU":
@@ -97,7 +89,7 @@ class Conv1DRnnCell(nn.Module):
         if h_prev is None:
             # init prev state
             b, _, l_conv = x.size()
-            h_prev = self._init_hidden(b, l_conv)
+            h_prev = self._init_hidden(b, l_conv, x.is_cuda)
 
         h = self.conv_h(h_prev)
 
@@ -105,8 +97,8 @@ class Conv1DRnnCell(nn.Module):
         h_z, h_r, h_n = torch.split(h, self.hidden_dim, dim=1)
 
         # GRU logic
-        z = torch.sigmoid(x_z + h_z)
         r = torch.sigmoid(x_r + h_r)
+        z = torch.sigmoid(x_z + h_z)
         n = torch.tanh(x_n + r * h_n)
         h_t = (1 - z) * n + z * h_prev
 
@@ -119,8 +111,8 @@ class Conv1DRnnCell(nn.Module):
         if h_prev is None:
             # init cell & prev state
             b, _, l_conv = x.size()
-            h_prev = self._init_hidden(b, l_conv)
-            c_prev = self._init_hidden(b, l_conv)
+            h_prev = self._init_hidden(b, l_conv, x.is_cuda)
+            c_prev = self._init_hidden(b, l_conv, x.is_cuda)
         else:
             h_prev, c_prev = h_prev
 
@@ -148,7 +140,7 @@ class Conv1DRnnCell(nn.Module):
         if h_prev is None:
             # init prev state
             b, _, l_conv = x.size()
-            h_prev = self._init_hidden(b, l_conv)
+            h_prev = self._init_hidden(b, l_conv, x.is_cuda)
 
         h = self.conv_h(h_prev)
 
@@ -162,7 +154,9 @@ class Conv1DRnnCell(nn.Module):
         self.conv_h.reset_parameters()
         return
 
-    def _init_hidden(self, batch_size, l):
+    def _init_hidden(self, batch_size, l, gpu=False):
         # init hidden state to zero
         h_0 = torch.zeros(batch_size, self.hidden_dim, l)
-        return h_0.to(self.device)
+        if gpu:
+            h_0 = h_0.cuda()
+        return h_0

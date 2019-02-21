@@ -1,7 +1,13 @@
 """
 Pytorch Training Script
 
+    Andre Nortje 18247717@sun.ac.za
+
 """
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Preliminaries
+# ----------------------------------------------------------------------------------------------------------------------
 
 # general imports
 import os
@@ -13,12 +19,10 @@ from tensorboardX import SummaryWriter
 from torch.optim import Adam
 from torch.optim import lr_scheduler
 
-
 # imports from torch base code
 from process_data import *
 from functions import MaskedLoss
-from networks import SpeechAuto, ConvSpeechAuto
-
+from networks import LinearRnnSpeechAuto, ConvRnnSpeechAuto, ConvSpeechAuto
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Argument Parser
@@ -36,7 +40,7 @@ parser.add_argument(
     metavar='SYSTEM',
     type=str,
     required=True,
-    choices=['SpeechAuto', 'ConvSpeechAuto'],
+    choices=['LinearRnnSpeechAuto', 'ConvSpeechAuto', 'ConvRnnSpeechAuto'],
     help='SpeechCompression System'
 )
 
@@ -45,7 +49,7 @@ parser.add_argument(
     '-e',
     metavar='EPOCHS',
     type=int,
-    default=100,
+    default=50,
     help='Training epochs'
 )
 
@@ -54,7 +58,7 @@ parser.add_argument(
     '-lr',
     metavar='LEARN_RATE',
     type=float,
-    default=0.0001,
+    default=0.001,
     help='Learning rate'
 )
 
@@ -124,7 +128,7 @@ parser.add_argument(
     '-bs',
     metavar='BATCH_SIZE',
     type=int,
-    default=3,
+    default=50,
     help='Batch size'
 )
 
@@ -133,7 +137,7 @@ parser.add_argument(
     '-bnd',
     metavar='BND',
     type=int,
-    default=3,
+    default=7,
     help='Bottleneck depth'
 )
 
@@ -142,7 +146,7 @@ parser.add_argument(
     '-cwi',
     metavar='CROP_WIDTH_INPUT',
     type=int,
-    default=100,
+    default=400,
     help='Width to crop input'
 )
 
@@ -160,7 +164,7 @@ parser.add_argument(
     '-cwt',
     metavar='CROP_WIDTH_TARGET',
     type=int,
-    default=100,
+    default=400,
     help='Width to crop target'
 )
 
@@ -243,20 +247,17 @@ valid_dataset = TargetSpeechDataset(
     ])
 )
 
-
-# Speech DataLoader
-
 train_dataLoader = BatchBucketSampler(
     data_source=train_dataset,
     batch_size=args.batch_size,
-    num_buckets=5,
+    num_buckets=3,
     shuffle_every_epoch=True
 )
 
 valid_dataLoader = BatchBucketSampler(
     data_source=valid_dataset,
     batch_size=args.batch_size,
-    num_buckets=5,
+    num_buckets=3,
     shuffle_every_epoch=True
 )
 
@@ -273,14 +274,13 @@ device = torch.device(
 
 # Define System
 sys = None
-embed_dim = 50
+embed_dim = 100
 num_speakers = train_dataset.get_num_speakers()
-print("NUM Speakers: {}".format(num_speakers))
 
-if args.system == "SpeechAuto":
-    # def network
-    sys = SpeechAuto(
-        name="SpeechAuto",
+if args.system == "LinearRnnSpeechAuto":
+    # def Linear Rnn network
+    sys = LinearRnnSpeechAuto(
+        name="LinearRnnSpeechAuto",
         bnd=args.bottleneck_depth,
         input_size=args.crop_height_input,
         target_size=args.crop_height_target,
@@ -290,14 +290,27 @@ if args.system == "SpeechAuto":
         )
     )
 
+elif args.system == "ConvRnnSpeechAuto":
+    # def Conv Rnn network
+    sys = ConvRnnSpeechAuto(
+        name="ConvRnnSpeechAuto",
+        bnd=args.bottleneck_depth,
+        input_size=args.crop_height_input,
+        target_size=args.crop_height_target,
+        gof=8,
+        speaker_cond=(
+            embed_dim,
+            num_speakers
+        )
+    )
+
 elif args.system == "ConvSpeechAuto":
-    # def network
+    # def Conv network
     sys = ConvSpeechAuto(
         name="ConvSpeechAuto",
         bnd=args.bottleneck_depth,
         input_size=args.crop_height_input,
         target_size=args.crop_height_target,
-        gof=10,
         speaker_cond=(
             embed_dim,
             num_speakers
@@ -311,6 +324,7 @@ sys.to(device)
 criterion = MaskedLoss(
     criterion=nn.MSELoss()
 )
+# criterion = nn.MSELoss()
 
 # Adam Optimizer
 opt = Adam(
@@ -320,7 +334,7 @@ opt = Adam(
 # MultiStep scheduler
 scheduler = lr_scheduler.MultiStepLR(
     optimizer=opt,
-    milestones=[30, 80, 140],
+    milestones=[8, 25, 40],
     gamma=args.gamma
 )
 

@@ -2,27 +2,30 @@
 import os
 import torch
 import torch.nn as nn
-from layers import PixelShuffle1D, Binarizer
+from functions import GOF2Feat, Feat2GOF
+from layers import Conv1DRnn, PixelShuffle1D, Binarizer
+
 
 """
 Convolutional Speech Binarizer
 
     input  : Mfcc's / Filter-Banks
     output : Mfcc's / Filter-Banks
-
+    
+    Rnn type : GRU
     Offers Speaker Conditioning Support
 
 """
 
 
-class ConvSpeechAuto(nn.Module):
+class ConvRnnSpeechAuto(nn.Module):
 
     def __init__(self,
                  name, bnd,
                  input_size, target_size,
-                 speaker_cond=None):
+                 gof, speaker_cond=None):
 
-        super(ConvSpeechAuto, self).__init__()
+        super(ConvRnnSpeechAuto, self).__init__()
 
         # def model name
         self.name = name
@@ -30,7 +33,10 @@ class ConvSpeechAuto(nn.Module):
         # bottle-neck depth
         self.bnd = bnd
 
-        # decay factor
+        # Group of Features GOF
+        self.gof = gof
+
+        # Decay Factor
         self.df = 8
 
         # Encoder Network
@@ -38,57 +44,24 @@ class ConvSpeechAuto(nn.Module):
         # (B, F, T) -> (B, F, T/8)
         self.encoder = nn.Sequential(
 
-            nn.Conv1d(
-                in_channels=input_size,
-                out_channels=64,
-                kernel_size=3,
-                stride=2,
-                padding=1,
-                dilation=1,
-                groups=1,
-                bias=True
+            Feat2GOF(
+                gof_size=self.gof,
+                time_first=True
             ),
 
-            nn.ReLU(),
-
-            nn.Conv1d(
-                in_channels=64,
-                out_channels=256,
-                kernel_size=3,
-                stride=2,
-                padding=1,
-                dilation=1,
-                groups=1,
-                bias=True
+            Conv1DRnn(
+                mode="GRU",
+                input_dim=[input_size, 64, 256],
+                hidden_dim=[64, 256, 512],
+                kernel_i=[3, 3, 3], stride_i=[2, 2, 2],
+                kernel_h=[1, 1, 1], stride_h=[1, 1, 1],
+                padding_i=[1, 1, 1], dilation_i=[1, 1, 1], groups_i=[1, 1, 1],
+                padding_h=[0, 0, 0], dilation_h=[1, 1, 1], groups_h=[1, 1, 1],
+                bias=True,
+                num_layers=3
             ),
 
-            nn.ReLU(),
-
-            nn.Conv1d(
-                in_channels=256,
-                out_channels=512,
-                kernel_size=3,
-                stride=2,
-                padding=1,
-                dilation=1,
-                groups=1,
-                bias=True
-            ),
-
-            nn.ReLU(),
-
-            nn.Conv1d(
-                in_channels=512,
-                out_channels=512,
-                kernel_size=3,
-                stride=2,
-                padding=1,
-                dilation=1,
-                groups=1,
-                bias=True
-            ),
-
-            nn.ReLU(),
+            GOF2Feat(),
 
             nn.Conv1d(
                 in_channels=512,
@@ -96,8 +69,6 @@ class ConvSpeechAuto(nn.Module):
                 kernel_size=1,
                 stride=1,
                 padding=0,
-                dilation=1,
-                groups=1,
                 bias=True
             ),
 
@@ -110,15 +81,12 @@ class ConvSpeechAuto(nn.Module):
 
         # Post-ConvBin Layer
         self.dec_conv_bin = nn.Sequential(
-
             nn.Conv1d(
                 in_channels=self.bnd,
                 out_channels=512,
                 kernel_size=1,
                 stride=1,
                 padding=0,
-                dilation=1,
-                groups=1,
                 bias=True
             ),
 
@@ -143,53 +111,69 @@ class ConvSpeechAuto(nn.Module):
             )
 
         self.decoder = nn.Sequential(
-            # (B, F, T/8) -> (B, F, T)
-            nn.Conv1d(
-                in_channels=512 + embed_dim,
-                out_channels=512,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                dilation=1,
-                groups=1,
-                bias=True
+
+            Feat2GOF(
+                gof_size=self.gof // 8,
+                time_first=True
             ),
 
-            nn.ReLU(),
+            Conv1DRnn(
+                mode="GRU",
+                input_dim=[512 + embed_dim],
+                hidden_dim=[512],
+                kernel_i=[3], stride_i=[1],
+                kernel_h=[1], stride_h=[1],
+                padding_i=[1], dilation_i=[1], groups_i=[1],
+                padding_h=[0], dilation_h=[1], groups_h=[1],
+                bias=True,
+                num_layers=1
+            ),
+
+            GOF2Feat(),
 
             PixelShuffle1D(
                 upscale_factor=2
             ),
 
-            nn.Conv1d(
-                in_channels=256,
-                out_channels=256,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                dilation=1,
-                groups=1,
-                bias=True
+            Feat2GOF(
+                gof_size=self.gof // 4
             ),
 
-            nn.ReLU(),
+            Conv1DRnn(
+                mode="GRU",
+                input_dim=[256],
+                hidden_dim=[512],
+                kernel_i=[3], stride_i=[1],
+                kernel_h=[1], stride_h=[1],
+                padding_i=[1], dilation_i=[1], groups_i=[1],
+                padding_h=[0], dilation_h=[1], groups_h=[1],
+                bias=True,
+                num_layers=1
+            ),
+
+            GOF2Feat(),
 
             PixelShuffle1D(
                 upscale_factor=2
             ),
 
-            nn.Conv1d(
-                in_channels=128,
-                out_channels=128,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                dilation=1,
-                groups=1,
-                bias=True
+            Feat2GOF(
+                gof_size=self.gof // 2
             ),
 
-            nn.ReLU(),
+            Conv1DRnn(
+                mode="GRU",
+                input_dim=[256],
+                hidden_dim=[128],
+                kernel_i=[3], stride_i=[1],
+                kernel_h=[1], stride_h=[1],
+                padding_i=[1], dilation_i=[1], groups_i=[1],
+                padding_h=[0], dilation_h=[1], groups_h=[1],
+                bias=True,
+                num_layers=1
+            ),
+
+            GOF2Feat(),
 
             PixelShuffle1D(
                 upscale_factor=2
@@ -201,6 +185,8 @@ class ConvSpeechAuto(nn.Module):
                 kernel_size=1,
                 stride=1,
                 padding=0,
+                dilation=1,
+                groups=1,
                 bias=True
             ),
 
@@ -210,9 +196,7 @@ class ConvSpeechAuto(nn.Module):
 
     def forward(self, x, x_len=None, speaker_id=None):
 
-        # (B, T, F) -> (B, F, T)
-        x = x.permute(0, 2, 1)
-        t_seq = x.size(2)
+        t_seq = x.size(1)
 
         # Dynamic pad
         x = self._dynamic_pad(x)
@@ -227,7 +211,7 @@ class ConvSpeechAuto(nn.Module):
         x = self.dec_conv_bin(b)
 
         if self.condition:
-            # Speaker Conditioning
+
             x = x.permute(0, 2, 1)
 
             x = torch.stack([
@@ -236,12 +220,14 @@ class ConvSpeechAuto(nn.Module):
                     dim=1
                 ) for t in range(x.size(1))],
                 dim=1
-            ).permute(0, 2, 1)
+            )
+        else:
+            x = x.permute(0, 2, 1)
 
-        # Target Synthesis with PixelShuffle
+        # Target Synthesis Conv1D Rnn Decoder with PixelShuffle
         x = self.decoder(x)
 
-        # Crop dynamic padding
+        # Crop out any dynamic padding
         x = x[:, :, : t_seq]
 
         # (B, F, T) -> (B, T, F)
@@ -252,14 +238,21 @@ class ConvSpeechAuto(nn.Module):
 
     def _dynamic_pad(self, x):
 
-        if x.size(2) % self.df != 0:
-            pad_size = (x.size(2) // self.df + 1) * self.df - x.size(2)
+        # Padding Factor
+        pf = self.gof * self.df
+
+        if x.size(1) % pf != 0:
+
+            pad_size = (x.size(1) // pf + 1) * pf - x.size(1)
 
             # apply padding to right
             x = nn.ConstantPad1d(
                 padding=(0, pad_size),
                 value=0
-            )(x)
+            )(x.permute(0, 2, 1))
+
+            # (B, F, T) -> (B, T, F)
+            x = x.permute(0, 2, 1)
 
         return x
 
