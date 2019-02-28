@@ -11,20 +11,22 @@ Andre Nortje adnortje@gmail.com
 # General imports
 import os
 import torch
-import itertools
 import numpy as np
 import argparse as arg
 from progress.bar import Bar
-import torchvision.transforms as tf
+from bitstring import BitArray
 from torch.utils.data import DataLoader
+from torchvision.transforms import Compose
 
 # Torch base code imports
-from networks import LinearRnnSpeechAuto, ConvSpeechAuto, ConvRnnSpeechAuto
 from process_data import SpeechDataset, Numpy2Tensor, Tensor2Numpy, CropSpeech
+from networks import LinearRnnSpeechAuto, ConvSpeechAuto, ConvRnnSpeechAuto, ConvRnnSpeechAutoBND
 
 # Constant Values
 GOF = 8
-MFCC = 13
+MFCC = 39
+V001 = 100
+V002 = 101
 EMBED_DIM = 100
 FILTERBANK = 45
 NUM_SPEAKERS = 102
@@ -45,10 +47,10 @@ multi_hot_2_one_hot function
 """
 
 
-def multi_2_one_hot(multi_hot, lookup_dict, bottle_neck):
+def multi_2_one_hot(multi_hot, bottle_neck):
     # multi-hot -> integer targets
     int_targets = [
-        lookup_dict["".join(map(str, map(int, mh)))] for mh in multi_hot
+        BitArray(mh).uint for mh in multi_hot
     ]
 
     # int targets -> one hot
@@ -70,28 +72,44 @@ parser = arg.ArgumentParser(
 )
 
 parser.add_argument(
-    '--system_file',
-    '-s',
-    metavar='SYSTEM_FILE',
+    "--system_file",
+    "-s",
+    metavar="SYSTEM_FILE",
     type=str,
     required=True,
-    help='SpeechCompression System'
+    help="Speech compression system"
 )
 
 parser.add_argument(
-    '--input_file',
-    '-if',
-    metavar='INPUT_FILE',
+    "--input_file",
+    "-if",
+    metavar="INPUT_FILE",
     type=str,
-    help='Training .npz file'
+    help="File to be encoded"
+)
+
+
+parser.add_argument(
+    "--bottleneck_depth",
+    "-bnd",
+    metavar="BOTTLENECK_DEPTH",
+    type=int,
+    help="System bottleneck depth"
 )
 
 parser.add_argument(
-    '--speaker_cond',
-    '-sc',
-    metavar='SPEAKER_CONDITIONAL',
+    "--speaker_cond",
+    "-sc",
+    metavar="SPEAKER_CONDITIONAL",
+    choices=["V001", "V002"],
     type=str,
-    help='Speaker on which to condition encodings'
+    help="Speaker on which to condition encodings"
+)
+
+parser.add_argument(
+    "--one_hot",
+    "-oh",
+    action="store_true"
 )
 
 args = parser.parse_args()
@@ -122,15 +140,12 @@ system_name = os.path.basename(system_file).split('.')[0]
 
 if system_name == "LinearRnnSpeechAuto":
 
-    # (1 x 128 one-hot -> 7 bits multi-hot)
-    bottleneck_depth = 7
-
     print("System: {}".format(system_name))
 
     # define network architecture
     system = LinearRnnSpeechAuto(
         name="SpeechAuto",
-        bnd=bottleneck_depth,
+        bnd=args.bottleneck_depth,
         input_size=MFCC,
         target_size=FILTERBANK,
         speaker_cond=(
@@ -141,15 +156,12 @@ if system_name == "LinearRnnSpeechAuto":
 
 elif system_name == "ConvSpeechAuto":
 
-    # bottleneck depth
-    bottleneck_depth = 56
-
     print("System: {}".format(system_name))
 
     # def network
-    sys = ConvSpeechAuto(
+    system = ConvSpeechAuto(
         name="ConvSpeechAuto",
-        bnd=bottleneck_depth,
+        bnd=args.bottleneck_depth,
         input_size=MFCC,
         target_size=FILTERBANK,
         speaker_cond=(
@@ -160,15 +172,29 @@ elif system_name == "ConvSpeechAuto":
 
 elif system_name == "ConvRnnSpeechAuto":
 
-    # bottleneck depth
-    bottleneck_depth = 56
+    print("System: {}".format(system_name))
+
+    # def network
+    system = ConvRnnSpeechAuto(
+        name="ConvSpeechAuto",
+        bnd=args.bottleneck_depth,
+        input_size=MFCC,
+        target_size=FILTERBANK,
+        gof=GOF,
+        speaker_cond=(
+            EMBED_DIM,
+            NUM_SPEAKERS
+        )
+    ).load(save_file=system_file)
+
+elif system_name == "ConvRnnSpeechAutoBND":
 
     print("System: {}".format(system_name))
 
     # def network
-    sys = ConvRnnSpeechAuto(
-        name="ConvSpeechAuto",
-        bnd=bottleneck_depth,
+    system = ConvRnnSpeechAutoBND(
+        name="ConvSpeechAutoBND",
+        bnd=args.bottleneck_depth,
         input_size=MFCC,
         target_size=FILTERBANK,
         gof=GOF,
@@ -198,7 +224,13 @@ if not os.path.isfile(input_file):
 
 input_dataset = SpeechDataset(
     speech_npz=input_file,
-    transform=Numpy2Tensor()
+    transform=Compose([
+        Numpy2Tensor(),
+        CropSpeech(
+            t=None,
+            feat=MFCC
+        )
+    ])
 )
 
 input_dataLoader = DataLoader(
@@ -210,19 +242,8 @@ input_dataLoader = DataLoader(
 
 # Define Speaker to Condition on:
 
-# check speaker embedding exists
-if args.speaker_cond not in input_dataset.speakers:
-    err_msg = "Speaker {}, D.N.E!"
-    raise KeyError(
-        err_msg.format(args.speaker_cond)
-    )
-
 # get speaker int
-cond_speaker_int = torch.tensor(
-    [
-        input_dataset.speakers[args.speaker_cond]
-    ]
-).to(device)
+cond_speaker_int = torch.tensor([V001]).to(device)
 
 # Start Encoding
 
@@ -239,22 +260,6 @@ bar = Bar(
 feat_dict = {}
 bits_dict_mh = {}
 bits_dict_oh = {}
-
-# Binary code lookup table
-bin_lookup = {}
-
-bin_codes = [
-    list(i) for i in itertools.product([0, 1], repeat=bottleneck_depth)
-]
-
-for j, bit_code in enumerate(bin_codes, 0):
-    # multi-hot bit key
-    mh_bit_key = "".join(
-        map(str, bit_code)
-    )
-
-    # key : symbol
-    bin_lookup[mh_bit_key] = j
 
 
 # Encoding loop
@@ -287,25 +292,28 @@ for data in input_dataLoader:
     # [-1, 1] -> [0, 1]
     bits_mh[bits_mh == -1] = 0
 
-    # multi-hot to one-hot
-    bits_oh = multi_2_one_hot(
-        bits_mh,
-        bin_lookup,
-        bottle_neck=bottleneck_depth
-    )
-
     # Update Feature Dictionaries
     feat_dict[utt_key] = opt_np
     bits_dict_mh[utt_key] = bits_mh
-    bits_dict_oh[utt_key] = bits_oh
+
+    if args.one_hot:
+        # multi-hot to one-hot
+        bits_oh = multi_2_one_hot(
+            bits_mh,
+            bottle_neck=args.bottleneck_depth
+        )
+
+        bits_dict_oh[utt_key] = bits_oh
 
     # increment progress bar
     bar.next()
 
 # save Dictionaries
 np.savez_compressed(FEAT_NPZ, **feat_dict)
-np.savez_compressed(BITS_NPZ_OH, **bits_dict_oh)
 np.savez_compressed(BITS_NPZ_MH, **bits_dict_mh)
+
+if args.one_hot:
+    np.savez_compressed(BITS_NPZ_OH, **bits_dict_oh)
 
 bar.finish()
 

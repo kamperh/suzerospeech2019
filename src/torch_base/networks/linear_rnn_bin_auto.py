@@ -8,7 +8,15 @@ from layers import LinearRnnBase
 
 """
 Linear Rnn Speech Autoencoder
-    
+
+    Args: 
+        name         (string) : model name
+        bnd          (int)    : bottleneck depth
+        input_size   (int)    : input feature dimension
+        target_size  (int)    : output feature size
+        rnn_mode     (string) : type of rnn to use, choices: GRU, LSTM, RNN
+        speaker_cond (tuple)  : apply speaker conditioning at decoder by supplying (embed_dim, num_speakers) 
+           
 """
 
 
@@ -16,11 +24,12 @@ class LinearRnnSpeechAuto(nn.Module):
 
     def __init__(self, name,
                  bnd,
-                 input_size,
-                 target_size, speaker_cond=None):
+                 input_size, target_size,
+                 rnn_mode="GRU", speaker_cond=None):
 
         super(LinearRnnSpeechAuto, self).__init__()
 
+        # name network
         self.name = name
 
         # bottle-neck depth
@@ -30,7 +39,7 @@ class LinearRnnSpeechAuto(nn.Module):
         self.encoder = LinearRnnBase(
             input_sizes=[input_size, 64, 256],
             hidden_sizes=[64, 256, 512],
-            mode="GRU"
+            mode=rnn_mode
 
         )
 
@@ -75,7 +84,7 @@ class LinearRnnSpeechAuto(nn.Module):
         self.decoder = LinearRnnBase(
             input_sizes=[512 + embed_dim, 256, 128, 64],
             hidden_sizes=[256, 128, 64, target_size],
-            mode="GRU"
+            mode=rnn_mode
         )
 
     def forward(self, x, x_len=None, speaker_id=None):

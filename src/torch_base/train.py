@@ -22,7 +22,7 @@ from torch.optim import lr_scheduler
 # imports from torch base code
 from process_data import *
 from functions import MaskedLoss
-from networks import LinearRnnSpeechAuto, ConvRnnSpeechAuto, ConvSpeechAuto
+from networks import LinearRnnSpeechAuto, ConvRnnSpeechAuto, ConvSpeechAuto, ConvRnnSpeechAutoBND
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Argument Parser
@@ -40,7 +40,7 @@ parser.add_argument(
     metavar='SYSTEM',
     type=str,
     required=True,
-    choices=['LinearRnnSpeechAuto', 'ConvSpeechAuto', 'ConvRnnSpeechAuto'],
+    choices=['LinearRnnSpeechAuto', 'ConvSpeechAuto', 'ConvRnnSpeechAuto', 'ConvRnnSpeechAutoBND'],
     help='SpeechCompression System'
 )
 
@@ -142,12 +142,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--crop_width_input',
-    '-cwi',
-    metavar='CROP_WIDTH_INPUT',
+    '--crop_width',
+    '-cw',
+    metavar='CROP_WIDTH',
     type=int,
-    default=400,
-    help='Width to crop input'
+    default=240,
+    help='Width to crop input and target'
 )
 
 parser.add_argument(
@@ -155,17 +155,8 @@ parser.add_argument(
     '-chi',
     metavar='CROP_HEIGHT_INPUT',
     type=int,
-    default=13,
+    default=39,
     help='Height to crop input'
-)
-
-parser.add_argument(
-    '--crop_width_target',
-    '-cwt',
-    metavar='CROP_WIDTH_TARGET',
-    type=int,
-    default=400,
-    help='Width to crop target'
 )
 
 parser.add_argument(
@@ -215,17 +206,20 @@ train_dataset = TargetSpeechDataset(
     inpt_transform=tf.Compose([
         Numpy2Tensor(),
         CropSpeech(
-            t=args.crop_width_input,
+            t=-1,
             feat=args.crop_height_input
         )
     ]),
     target_transform=tf.Compose([
         Numpy2Tensor(),
         CropSpeech(
-            t=args.crop_width_target,
+            t=-1,
             feat=args.crop_height_target
         )
-    ])
+    ]),
+    transform=CropSeqSpeech(
+        t=args.crop_width
+    )
 )
 
 valid_dataset = TargetSpeechDataset(
@@ -234,14 +228,14 @@ valid_dataset = TargetSpeechDataset(
     inpt_transform=tf.Compose([
         Numpy2Tensor(),
         CropSpeech(
-            t=args.crop_width_input,
+            t=args.crop_width,
             feat=args.crop_height_input
         )
     ]),
     target_transform=tf.Compose([
         Numpy2Tensor(),
         CropSpeech(
-            t=args.crop_width_target,
+            t=args.crop_width,
             feat=args.crop_height_target
         )
     ])
@@ -294,6 +288,20 @@ elif args.system == "ConvRnnSpeechAuto":
     # def Conv Rnn network
     sys = ConvRnnSpeechAuto(
         name="ConvRnnSpeechAuto",
+        bnd=args.bottleneck_depth,
+        input_size=args.crop_height_input,
+        target_size=args.crop_height_target,
+        gof=8,
+        speaker_cond=(
+            embed_dim,
+            num_speakers
+        )
+    )
+
+elif args.system == "ConvRnnSpeechAutoBND":
+    # def Conv Rnn network
+    sys = ConvRnnSpeechAutoBND(
+        name="ConvRnnSpeechAutoBND",
         bnd=args.bottleneck_depth,
         input_size=args.crop_height_input,
         target_size=args.crop_height_target,

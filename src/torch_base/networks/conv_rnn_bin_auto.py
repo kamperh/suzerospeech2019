@@ -7,14 +7,17 @@ from layers import Conv1DRnn, PixelShuffle1D, Binarizer
 
 
 """
-Convolutional Speech Binarizer
+Convolutional RNN Speech Autoencoder
 
-    input  : Mfcc's / Filter-Banks
-    output : Mfcc's / Filter-Banks
-    
-    Rnn type : GRU
-    Offers Speaker Conditioning Support
-
+    Args: 
+        name         (string) : model name
+        bnd          (int)    : bottleneck depth
+        input_size   (int)    : input feature dimension
+        target_size  (int)    : output feature size
+        gof          (int)    : Group Of Features size
+        rnn_mode     (string) : type of rnn to use, choices: GRU, LSTM, RNN
+        speaker_cond (tuple)  : apply speaker conditioning at decoder by supplying (embed_dim, num_speakers) 
+           
 """
 
 
@@ -23,7 +26,7 @@ class ConvRnnSpeechAuto(nn.Module):
     def __init__(self,
                  name, bnd,
                  input_size, target_size,
-                 gof, speaker_cond=None):
+                 gof, rnn_mode="GRU", speaker_cond=None):
 
         super(ConvRnnSpeechAuto, self).__init__()
 
@@ -44,15 +47,25 @@ class ConvRnnSpeechAuto(nn.Module):
         # (B, F, T) -> (B, F, T/8)
         self.encoder = nn.Sequential(
 
+            nn.Conv1d(
+                in_channels=input_size,
+                out_channels=64,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                bias=True
+            ),
+
+            nn.ReLU(),
+
             Feat2GOF(
-                gof_size=self.gof,
-                time_first=True
+                gof_size=self.gof
             ),
 
             Conv1DRnn(
-                mode="GRU",
-                input_dim=[input_size, 64, 256],
-                hidden_dim=[64, 256, 512],
+                mode=rnn_mode,
+                input_dim=[64, 128, 256],
+                hidden_dim=[128, 256, 512],
                 kernel_i=[3, 3, 3], stride_i=[2, 2, 2],
                 kernel_h=[1, 1, 1], stride_h=[1, 1, 1],
                 padding_i=[1, 1, 1], dilation_i=[1, 1, 1], groups_i=[1, 1, 1],
@@ -118,7 +131,7 @@ class ConvRnnSpeechAuto(nn.Module):
             ),
 
             Conv1DRnn(
-                mode="GRU",
+                mode=rnn_mode,
                 input_dim=[512 + embed_dim],
                 hidden_dim=[512],
                 kernel_i=[3], stride_i=[1],
@@ -140,7 +153,7 @@ class ConvRnnSpeechAuto(nn.Module):
             ),
 
             Conv1DRnn(
-                mode="GRU",
+                mode=rnn_mode,
                 input_dim=[256],
                 hidden_dim=[512],
                 kernel_i=[3], stride_i=[1],
@@ -162,7 +175,7 @@ class ConvRnnSpeechAuto(nn.Module):
             ),
 
             Conv1DRnn(
-                mode="GRU",
+                mode=rnn_mode,
                 input_dim=[256],
                 hidden_dim=[128],
                 kernel_i=[3], stride_i=[1],
@@ -201,6 +214,9 @@ class ConvRnnSpeechAuto(nn.Module):
         # Dynamic pad
         x = self._dynamic_pad(x)
 
+        # (B, T, F) -> (B, F, T)
+        x = x.permute(0, 2, 1)
+
         # Conv1D Rnn Encoder
         x = self.encoder(x)
 
@@ -238,12 +254,9 @@ class ConvRnnSpeechAuto(nn.Module):
 
     def _dynamic_pad(self, x):
 
-        # Padding Factor
-        pf = self.gof * self.df
+        if x.size(1) % self.gof != 0:
 
-        if x.size(1) % pf != 0:
-
-            pad_size = (x.size(1) // pf + 1) * pf - x.size(1)
+            pad_size = (x.size(1) // self.gof + 1) * self.gof - x.size(1)
 
             # apply padding to right
             x = nn.ConstantPad1d(

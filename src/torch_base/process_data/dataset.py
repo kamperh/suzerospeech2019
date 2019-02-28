@@ -41,7 +41,7 @@ class SpeechDataset(Dataset):
         self.transform = transform
 
         # Speakers Dict
-        speakers = list(
+        speakers = sorted(
             # remove duplicates
             set([
                 utt_key[:utt_key.index("_")] for utt_key in self.keys
@@ -94,6 +94,7 @@ TargetSpeechDataset:
         Args:
             inpt_npz         (string)   : numpy archive (.npz) containing MFCC or Filter bank data (input)
             target_npz       (string)   : numpy archive (.npz) containing MFCC or Filter bank data (target)
+            transform        (callable) : optional transform to apply to both input and target simultaneously
             inpt_transform   (callable) : optional transforms applied to input feature data
             target_transform (callable) : optional transforms applied to target feature data
 
@@ -105,7 +106,7 @@ class TargetSpeechDataset(Dataset):
     def __init__(self,
                  inpt_npz,
                  target_npz,
-                 inpt_transform=None, target_transform=None):
+                 inpt_transform=None, target_transform=None, transform=None):
 
         # expand & check file locations
         inpt_npz = os.path.expanduser(
@@ -137,13 +138,14 @@ class TargetSpeechDataset(Dataset):
         )
 
         # define speech transforms
+        self.transform = transform
         self.inpt_transform = inpt_transform
         self.target_transform = target_transform
 
         self.speakers = set([])
 
         # Speakers Dict
-        speakers = list(
+        speakers = sorted(
             # remove duplicates
             set([
                 utt_key[:utt_key.index("_")] for utt_key in self.keys
@@ -185,6 +187,11 @@ class TargetSpeechDataset(Dataset):
             # apply target transforms
             target_feat = self.target_transform(
                 target_feat
+            )
+
+        if self.transform:
+            inpt_feat, target_feat = self.transform(
+                inpt_feat, target_feat
             )
 
         # speech Dict
