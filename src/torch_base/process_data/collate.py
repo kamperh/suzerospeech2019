@@ -3,69 +3,99 @@ import torch
 from torch.nn import ConstantPad1d
 
 """
-Function mfcc_collate
+Function speech_collate
 
-    pads each mfcc in batch to longest seq in that batch and converts sampled features to torch.Tensor
+    pads each speech feature in batch to longest seq in that batch and converts sampled features to torch.Tensor
 
 """
 
 
-def mfcc_collate(batch, pad_val=0.0):
+def speech_collate(batch, pad_val=0.0):
     r"""Puts each data field into a tensor with outer dimension batch size"""
 
-    if isinstance(batch[0], torch.Tensor):
+    # split features and keys
+    utt_keys = []
+    inpt_batch = []
+    target_batch = []
+    speaker_ints = []
 
-        # max seq length
-        seq_len = [b.size(0) for b in batch]
-        max_seq = max(seq_len)
+    for b in batch:
+        # append values
+        utt_keys.append(b["utt_key"])
+        inpt_batch.append(b["inpt_feat"])
+        if "target_feat" in b:
+            target_batch.append(b["target_feat"])
+        speaker_ints.append(b["speaker_int"])
 
-        # pad to max length
-        batch = [
-            ConstantPad1d((0, int(max_seq - b.size(0))), value=pad_val)(b.transpose(0, 1)) for b in batch
+    # max seq length
+    seq_len = [
+        b.size(0) for b in inpt_batch
+    ]
+    max_seq = max(seq_len)
+
+    # pad to max length
+    inpt_batch = [
+        ConstantPad1d(
+            (0, int(max_seq - b.size(0))),
+            value=pad_val
+        )(b.transpose(0, 1)) for b in inpt_batch
+    ]
+
+    # sort seq & get sorted indices
+    indices = torch.argsort(
+        torch.tensor(seq_len),
+        descending=True
+    )
+    seq_len.sort(reverse=True)
+
+    # sort batch (descending order) for torch.rnn compatibility
+    inpt_batch = [
+        inpt_batch[i] for i in indices
+    ]
+
+    inpt_batch = torch.stack(
+        inpt_batch,
+        dim=0
+    )
+
+    # (B, f, T) -> (B, T, f)
+    inpt_batch = inpt_batch.permute(0, 2, 1)
+
+    # rearrange speaker ints and utt_keys to match batches
+    speaker_ints = torch.tensor([
+        speaker_ints[i] for i in indices
+    ])
+
+    utt_keys = [
+        utt_keys[i] for i in indices
+    ]
+
+    # Batch Dict
+    batch_dict = {
+        "utt_keys": utt_keys,
+        "seq_len": seq_len,
+        "input_batch": inpt_batch,
+        "speaker_ints": speaker_ints
+    }
+
+    if "target_feat" in batch[0]:
+        target_batch = [
+            ConstantPad1d(
+                (0, int(max_seq - b.size(0))),
+                value=pad_val
+            )(b.transpose(0, 1)) for b in target_batch
         ]
 
-        # sort seq & get sorted indices
-        indices = torch.argsort(
-            torch.tensor(seq_len),
-            descending=True
+        target_batch = [
+            target_batch[i] for i in indices
+        ]
+
+        target_batch = torch.stack(
+            target_batch,
+            dim=0
         )
-        seq_len.sort(reverse=True)
-
-        # sort batch (descending order) for torch.rnn compatibility
-        batch = [
-            batch[i] for i in indices
-        ]
-
-        batch = torch.stack(batch, 0)
 
         # (B, f, T) -> (B, T, f)
-        batch = batch.permute(0, 2, 1)
+        batch_dict["target_batch"] = target_batch.permute(0, 2, 1)
 
-        # ret tensor batch & corresponding seq lengths
-
-        return batch, seq_len
-
-    elif isinstance(batch[0], tuple):
-
-        # split features and keys
-
-        utt_keys = [
-            b[0] for b in batch
-        ]
-
-        utt_feats = [
-            b[1] for b in batch
-        ]
-
-        # batch feat
-        batch, seq_len = mfcc_collate(utt_feats)
-
-        return utt_keys, batch, seq_len
-
-    else:
-        err_msg = "mfcc collate requires batch contain tensors or [key, tensor] pairs, found {}"
-        raise TypeError((
-            err_msg.format(type(batch[0]))
-        ))
-
-    return
+    return batch_dict

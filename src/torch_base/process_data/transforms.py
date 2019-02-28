@@ -1,29 +1,61 @@
 # imports
 import torch
+from random import randint
 
 """
-Transforms applied per batch of MFCC's
+Transforms applied to SpeechData
 
 """
 
 """
-Class CropMfcc
+Class CropSeqSpeech
 
-    crops Mfcc tensor to desired (T x freq)
+    crops Speech Feature Tensor to desired (T x F)
 """
 
 
-class CropMfcc(object):
+class CropSeqSpeech(object):
 
-    def __init__(self, t, freq):
+    def __init__(self, t):
 
         self.t = t
-        self.f = freq
 
-    def __call__(self, mfcc):
-        # Np -> Torch.Tensor
-        mfcc = mfcc[0:self.t, 0:self.f]
-        return mfcc
+    def __call__(self, inpt, target):
+
+        if inpt.size(0) > self.t:
+            index = randint(0, inpt.size(0) - self.t)
+            inpt = inpt[index:index+self.t, :]
+            target = target[index:index+self.t, :]
+
+        else:
+            inpt = inpt[:self.t, :]
+            target = target[:self.t, :]
+
+        return inpt, target
+
+    def __repr__(self):
+        return self.__class__.__name__
+
+
+"""
+Class CropSpeech
+
+    crops Speech Feature Tensor to desired (T x F)
+"""
+
+
+class CropSpeech(object):
+
+    def __init__(self, t, feat):
+
+        self.t = t
+        self.f = feat
+
+    def __call__(self, speech):
+
+        speech = speech[: self.t, : self.f]
+
+        return speech
 
     def __repr__(self):
         return self.__class__.__name__

@@ -1,7 +1,13 @@
 """
 Pytorch Training Script
 
+    Andre Nortje 18247717@sun.ac.za
+
 """
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Preliminaries
+# ----------------------------------------------------------------------------------------------------------------------
 
 # general imports
 import os
@@ -13,12 +19,10 @@ from tensorboardX import SummaryWriter
 from torch.optim import Adam
 from torch.optim import lr_scheduler
 
-
 # imports from torch base code
 from process_data import *
-from networks import MfccAuto
 from functions import MaskedLoss
-
+from networks import LinearRnnSpeechAuto, ConvRnnSpeechAuto, ConvSpeechAuto, ConvRnnSpeechAutoBND
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Argument Parser
@@ -36,7 +40,7 @@ parser.add_argument(
     metavar='SYSTEM',
     type=str,
     required=True,
-    choices=['MfccAuto'],
+    choices=['LinearRnnSpeechAuto', 'ConvSpeechAuto', 'ConvRnnSpeechAuto', 'ConvRnnSpeechAutoBND'],
     help='SpeechCompression System'
 )
 
@@ -45,7 +49,7 @@ parser.add_argument(
     '-e',
     metavar='EPOCHS',
     type=int,
-    default=100,
+    default=50,
     help='Training epochs'
 )
 
@@ -54,7 +58,7 @@ parser.add_argument(
     '-lr',
     metavar='LEARN_RATE',
     type=float,
-    default=0.0001,
+    default=0.001,
     help='Learning rate'
 )
 
@@ -77,20 +81,37 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--train',
-    '-tf',
-    metavar='TRAIN_FILE',
+    '--train_input',
+    '-ti',
+    metavar='TRAIN_INPUT_FILE',
     type=str,
-    help='Training .npz file'
+    help='Training input .npz file'
 )
 
 parser.add_argument(
-    '--valid',
-    '-vf',
-    metavar='VALID_FILE',
+    '--train_target',
+    '-tt',
+    metavar='TRAIN_TARGET_FILE',
+    type=str,
+    help='Training target .npz file'
+)
+
+parser.add_argument(
+    '--valid_input',
+    '-vi',
+    metavar='VALID_INPUT_FILE',
     type=str,
     default='./',
-    help='Validation .npz file'
+    help='Validation input .npz file'
+)
+
+parser.add_argument(
+    '--valid_target',
+    '-vt',
+    metavar='VALID_TARGET_FILE',
+    type=str,
+    default='./',
+    help='Validation target .npz file'
 )
 
 parser.add_argument(
@@ -107,7 +128,7 @@ parser.add_argument(
     '-bs',
     metavar='BATCH_SIZE',
     type=int,
-    default=3,
+    default=50,
     help='Batch size'
 )
 
@@ -116,26 +137,35 @@ parser.add_argument(
     '-bnd',
     metavar='BND',
     type=int,
-    default=3,
+    default=7,
     help='Bottleneck depth'
 )
 
 parser.add_argument(
     '--crop_width',
-    '-c_w',
+    '-cw',
     metavar='CROP_WIDTH',
     type=int,
-    default=500,
-    help='Width to crop input'
+    default=240,
+    help='Width to crop input and target'
 )
 
 parser.add_argument(
-    '--crop_height',
-    '-c_h',
-    metavar='CROP_HEIGHT',
+    '--crop_height_input',
+    '-chi',
+    metavar='CROP_HEIGHT_INPUT',
     type=int,
-    default=13,
+    default=39,
     help='Height to crop input'
+)
+
+parser.add_argument(
+    '--crop_height_target',
+    '-cht',
+    metavar='CROP_HEIGHT_TARGET',
+    type=int,
+    default=45,
+    help='Height to crop target'
 )
 
 parser.add_argument(
@@ -156,42 +186,6 @@ args = parser.parse_args()
 # TRAINING LOOP
 # ----------------------------------------------------------------------------------------------------------------------
 
-# GPU || CPU
-device = torch.device(
-    "cuda:0" if torch.cuda.is_available() else "cpu"
-)
-
-# Define System
-sys = None
-
-if args.system == 'MfccAuto':
-    # def network
-    sys = MfccAuto(
-        bnd=args.bottleneck_depth,
-        input_size=args.crop_height
-    )
-
-
-# model -> device
-sys.to(device)
-
-# Loss function
-criterion = MaskedLoss(
-    criterion=nn.MSELoss()
-)
-
-# Adam Optimizer
-opt = Adam(
-    sys.parameters(), args.learn_rate
-)
-
-# MultiStep scheduler
-scheduler = lr_scheduler.MultiStepLR(
-    optimizer=opt,
-    milestones=[30, 80, 140],
-    gamma=args.gamma
-)
-
 # check train, log and save locations
 log_loc = os.path.expanduser(args.log)
 
@@ -204,32 +198,48 @@ if not os.path.isdir(save_loc):
     raise NotADirectoryError('Save directory d.n.e')
 
 
-# Mfcc Dataset
+# Speech Datasets
 
-train_dataset = MfccDataset(
-    mfcc_npz=args.train,
-    transform=tf.Compose([
+train_dataset = TargetSpeechDataset(
+    inpt_npz=args.train_input,
+    target_npz=args.train_target,
+    inpt_transform=tf.Compose([
         Numpy2Tensor(),
-        CropMfcc(
+        CropSpeech(
+            t=-1,
+            feat=args.crop_height_input
+        )
+    ]),
+    target_transform=tf.Compose([
+        Numpy2Tensor(),
+        CropSpeech(
+            t=-1,
+            feat=args.crop_height_target
+        )
+    ]),
+    transform=CropSeqSpeech(
+        t=args.crop_width
+    )
+)
+
+valid_dataset = TargetSpeechDataset(
+    inpt_npz=args.valid_input,
+    target_npz=args.valid_target,
+    inpt_transform=tf.Compose([
+        Numpy2Tensor(),
+        CropSpeech(
             t=args.crop_width,
-            freq=args.crop_height
+            feat=args.crop_height_input
+        )
+    ]),
+    target_transform=tf.Compose([
+        Numpy2Tensor(),
+        CropSpeech(
+            t=args.crop_width,
+            feat=args.crop_height_target
         )
     ])
 )
-
-valid_dataset = MfccDataset(
-    mfcc_npz=args.valid,
-    transform=tf.Compose([
-        Numpy2Tensor(),
-        CropMfcc(
-            t=args.crop_width,
-            freq=args.crop_height
-        )
-    ])
-)
-
-
-# Mfcc DataLoader
 
 train_dataLoader = BatchBucketSampler(
     data_source=train_dataset,
@@ -251,6 +261,90 @@ dataLoaders = {
     'valid': valid_dataLoader
 }
 
+# GPU || CPU
+device = torch.device(
+    "cuda:0" if torch.cuda.is_available() else "cpu"
+)
+
+# Define System
+sys = None
+embed_dim = 100
+num_speakers = train_dataset.get_num_speakers()
+
+if args.system == "LinearRnnSpeechAuto":
+    # def Linear Rnn network
+    sys = LinearRnnSpeechAuto(
+        name="LinearRnnSpeechAuto",
+        bnd=args.bottleneck_depth,
+        input_size=args.crop_height_input,
+        target_size=args.crop_height_target,
+        speaker_cond=(
+            embed_dim,
+            num_speakers
+        )
+    )
+
+elif args.system == "ConvRnnSpeechAuto":
+    # def Conv Rnn network
+    sys = ConvRnnSpeechAuto(
+        name="ConvRnnSpeechAuto",
+        bnd=args.bottleneck_depth,
+        input_size=args.crop_height_input,
+        target_size=args.crop_height_target,
+        gof=8,
+        speaker_cond=(
+            embed_dim,
+            num_speakers
+        )
+    )
+
+elif args.system == "ConvRnnSpeechAutoBND":
+    # def Conv Rnn network
+    sys = ConvRnnSpeechAutoBND(
+        name="ConvRnnSpeechAutoBND",
+        bnd=args.bottleneck_depth,
+        input_size=args.crop_height_input,
+        target_size=args.crop_height_target,
+        gof=8,
+        speaker_cond=(
+            embed_dim,
+            num_speakers
+        )
+    )
+
+elif args.system == "ConvSpeechAuto":
+    # def Conv network
+    sys = ConvSpeechAuto(
+        name="ConvSpeechAuto",
+        bnd=args.bottleneck_depth,
+        input_size=args.crop_height_input,
+        target_size=args.crop_height_target,
+        speaker_cond=(
+            embed_dim,
+            num_speakers
+        )
+    )
+
+# model -> device
+sys.to(device)
+
+# Loss function
+criterion = MaskedLoss(
+    criterion=nn.MSELoss()
+)
+# criterion = nn.MSELoss()
+
+# Adam Optimizer
+opt = Adam(
+    sys.parameters(), args.learn_rate
+)
+
+# MultiStep scheduler
+scheduler = lr_scheduler.MultiStepLR(
+    optimizer=opt,
+    milestones=[8, 25, 40],
+    gamma=args.gamma
+)
 
 # start epoch, time previously elapsed, best Loss
 t_prev = 0.0
@@ -323,17 +417,25 @@ for epoch in range(current_epoch, args.epochs + 1, 1):
         for i, data in enumerate(dataLoaders[phase], 0):
 
             # data -> device
-            inpt, seq_len = data
+            inpt = data["input_batch"]
             inpt = inpt.to(device)
 
             # zero model gradients
             opt.zero_grad()
 
             # forward
-            out, _ = sys(inpt, seq_len)
+            out, _ = sys(
+                inpt,
+                x_len=data["seq_len"],
+                speaker_id=data["speaker_ints"].to(device)
+            )
 
             # loss
-            loss = criterion(out, target=inpt)
+            loss = criterion(
+                out,
+                target=data["target_batch"].to(device),
+                lengths=data["seq_len"]
+            )
 
             # running loss
             run_loss += loss.item()

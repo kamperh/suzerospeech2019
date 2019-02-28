@@ -1,5 +1,6 @@
 # imports
 import torch.nn as nn
+from torch.nn.utils.rnn import pack_padded_sequence
 
 """
 Masked Loss
@@ -19,12 +20,19 @@ class MaskedLoss(nn.Module):
 
         self.criterion = criterion
 
-    def forward(self, output, target):
+    def forward(self, model_output, target, lengths):
 
-        # select non-padded values
-        output = output[output != 0.0]
+        output = pack_padded_sequence(
+            model_output,
+            lengths,
+            batch_first=True
+        ).data
 
-        target = target[target != 0.0]
+        target = pack_padded_sequence(
+            target,
+            lengths,
+            batch_first=True
+        ).data
 
         # loss on masked values
         loss = self.criterion(

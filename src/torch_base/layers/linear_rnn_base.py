@@ -3,34 +3,35 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 """
- Stacked RNN Base base code
+ Linear RNN Base base code
     
     Args:
-        input_size    (int)    : input size
+        input_sizes   (list)   : input sizes
         hidden_sizes  (list)   : list of layer hidden sizes
-        mode          (string) : type of cell to use ['LSTM', 'RNN', 'RNN']
+        mode          (string) : type of cell to use ['LSTM', 'GRU', 'RNN']
         bias          (bool)   : include bias terms, default True
         bidirectional (bool)   : set to True for bidirectional RNN layers
-        batch_first   (bool)   : (t, B, d) else (B, t, d)
+        batch_first   (bool)   : (t, B, feat) if False else (B, t, feat)
 
 """
 
 
-class StackedRnnBase(nn.Module):
+class LinearRnnBase(nn.Module):
 
     def __init__(self,
-                 input_size,
-                 hidden_sizes, mode="LSTM", bias=True,
+                 input_sizes,
+                 hidden_sizes, mode="GRU", bias=True,
                  bidirectional=False, batch_first=True):
 
-        super(StackedRnnBase, self).__init__()
+        super(LinearRnnBase, self).__init__()
+
+        if len(input_sizes) != len(hidden_sizes):
+            err_msg = "Size mismatch between len(input_sizes) and len(hidden_sizes)"
+            raise ValueError(err_msg)
 
         self.num_layers = len(hidden_sizes)
 
         self.batch_first = batch_first
-
-        # layer input sizes
-        input_sizes = [input_size] + hidden_sizes[:-1]
 
         self.multilayer_rnn = nn.ModuleList([
             nn.RNNBase(
