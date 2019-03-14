@@ -1,4 +1,4 @@
-"""TODO(rpeloff): module doc
+"""Layers for building convolutional neural networks.
 
 Author: Ryan Eloff
 Contact: ryan.peter.eloff@gmail.com
@@ -14,26 +14,91 @@ from __future__ import print_function
 import tensorflow as tf
 
 
-from constants import TF_FLOAT_DTYPE
+
+# ------------------------------------------------------------------------------ # -----80~100---- #
+# General convolution layer block:
+# ------------------------------------------------------------------------------ # -----80~100---- #
+
+
+class WrapConv2D(tf.keras.layers.Layer):
+
+    def __init__(
+            self, conv2D=tf.keras.layers.Conv2D, batch_norm=False,
+            activation="relu", downsample=None, dropout=None, **conv2D_kwargs):
+        """Convolution wrapped with regularizer, activation, and down-sampling.
+
+        Parameters
+        ----------
+        conv2D : Layer class, optional
+            Convolution layer applied to inputs (e.g. tf.keras.layers.Conv2D).
+        batch_norm : boolean, optional
+            Apply batch norm after convolution, but before activation.
+        activation : string, optional
+            Activation layer applied after regularized output (e.g. ReLU, PReLU, etc.).
+        dropout : Layer or callable, optional
+            Dropout layer applied to the activation output (e.g. spatial dropout).
+        downsample : Layer or callable, optional
+            Down-sampling layer applied to the final output (e.g. max pooling).
+        """
+        super(WrapConv2D, self).__init__()
+        self.conv2D = conv2D(**conv2D_kwargs)
+        self.batch_norm = batch_norm
+        self.bn2D = tf.keras.layers.BatchNormalization() if self.batch_norm else None
+        self.activation = tf.keras.layers.Activation(activation)
+        self.dropout = dropout() if dropout is not None else None
+        self.downsample = downsample() if downsample is not None else None
+
+    def call(self, inputs):
+        outputs = self.conv2D(inputs)
+        if self.bn2D is not None:
+            outputs = self.bn2D(outputs)
+        outputs = self.activation(outputs)
+        if self.dropout is not None:
+            outputs = self.dropout(outputs)
+        if self.downsample is not None:
+            outputs = self.downsample(outputs)
+        return outputs
+
+    @property
+    def updates(self):
+        """Based on Keras TF guide:
+        https://blog.keras.io/keras-as-a-simplified-interface-to-tensorflow-tutorial.html
+        """
+        updates = super(WrapConv2D, self).updates  # get base layer update ops
+
+        if self.bn2D is not None:
+            # for old_value, new_value in self.bn2D.updates:
+                # updates.append(tf.assign(old_value, new_value))
+            updates += self.bn2D.updates
+
+        return updates
+
+    def compute_output_shape(self, input_shape):
+        shape = tf.TensorShape(input_shape).as_list()
+        # ...
+        return tf.TensorShape(shape)
+
+
+
 
 
 # ------------------------------------------------------------------------------ # -----80~100---- #
-# Utillity functions:
+# TODO(reploff) OLD---TO BE REMOVED
 # ------------------------------------------------------------------------------ # -----80~100---- #
 
-# ...
 
 # ------------------------------------------------------------------------------ # -----80~100---- #
 # Convolutional neural network (CNN):
 # ------------------------------------------------------------------------------ # -----80~100---- #
 
 
-def build_cnn(input_shape, filters, kernel_size, strides, padding="valid",
-              data_format="channels_last", dilation_rate=None, activation=None,
-              pool_size=None, use_bias=True, keep_prob=1., spatial_dropout=False,
-              apply_batch_norm=False, kernel_initializer="glorot_uniform",
-              bias_initializer="zeros", conv2d_kwargs=None, pool2d_kwargs=None,
-              name="cnn"):
+def build_cnn(
+        x_input, filters, kernel_size, strides, padding="valid",
+        data_format="channels_last", dilation_rate=None, activation=None,
+        pool_size=None, use_bias=True, keep_prob=1., spatial_dropout=False,
+        apply_batch_norm=False, kernel_initializer="glorot_uniform",
+        bias_initializer="zeros", conv2d_kwargs=None, pool2d_kwargs=None,
+        name="cnn"):
     """Build a simple convolutional neural network (CNN).
 
     Based on tf.keras.layers.Conv2D and tf.keras.layers.MaxPool2D. Optional
@@ -43,8 +108,8 @@ def build_cnn(input_shape, filters, kernel_size, strides, padding="valid",
 
     Parameters
     ----------
-    input_shape : list of integers
-        Shape of the expected input, not including the batch size.
+    x_input : tensor
+        Input tensor to the network (see tf.keras.layers.Input).
     filters : list of integers
         Sequence of output dimensions for each 2D convolutional layer (i.e. number of output filters after each layer).
     kernel_size : list of list of 2 integers
@@ -107,7 +172,6 @@ def build_cnn(input_shape, filters, kernel_size, strides, padding="valid",
             len(filters) == len(pool_size)), ("The first dimension of filters, "
                                               "kernel_size, dilation_rate and "
                                               "pool_size must be the same.")
-    x_input = tf.keras.layers.Input(shape=input_shape)
     x_output = x_input
     for index, conv_params in enumerate(zip(filters, kernel_size,
                                             strides, dilation_rate,
@@ -151,7 +215,7 @@ def build_cnn(input_shape, filters, kernel_size, strides, padding="valid",
 
 
 def build_transpose_cnn(
-        input_shape, filters, kernel_size, strides, output_shape=None,
+        x_input, filters, kernel_size, strides, output_shape=None,
         padding="valid", data_format="channels_last", dilation_rate=None,
         activation=None, use_bias=True, keep_prob=1., spatial_dropout=False,
         apply_batch_norm=False, kernel_initializer="glorot_uniform",
@@ -204,7 +268,6 @@ def build_transpose_cnn(
                 "The first dimension of filters, "
                 "kernel_size, dilation_rate and "
                 "pool_size must be the same.")
-    x_input = tf.keras.layers.Input(shape=input_shape)
     x_output = x_input
     for index, conv_params in enumerate(zip(filters, kernel_size,
                                             strides, dilation_rate)):
@@ -212,14 +275,14 @@ def build_transpose_cnn(
         (conv_filters, conv_kernel_size,
          conv_strides, conv_dilation_rate) = conv_params  # unpack the layer params
         # Transpose convolution (unpooling + convolution)
-        conv_layer = tf.keras.layers.Conv2DTranspose(
+        deconv_layer = tf.keras.layers.Conv2DTranspose(
             conv_filters, conv_kernel_size, strides=conv_strides,
             padding=padding, data_format=data_format,
             dilation_rate=conv_dilation_rate, activation=activation,
             use_bias=use_bias, kernel_initializer=kernel_initializer,
             bias_initializer=bias_initializer,
             **conv2d_kwargs)
-        x_output = conv_layer(x_output)
+        x_output = deconv_layer(x_output)
         # Dropout
         if spatial_dropout:
             dropout = tf.keras.layers.SpatialDropout2D(
@@ -252,7 +315,7 @@ def build_transpose_cnn(
 
 
 def build_upsample_cnn(
-        input_shape, factors, filters, kernel_size, strides, output_shape=None,
+        x_input, factors, filters, kernel_size, strides, output_shape=None,
         padding="valid", data_format="channels_last", dilation_rate=None,
         activation=None, use_bias=True, keep_prob=1., spatial_dropout=False,
         apply_batch_norm=False, kernel_initializer="glorot_uniform",
@@ -292,7 +355,6 @@ def build_upsample_cnn(
             len(filters) == len(factors)), ("The first dimension of filters, "
                                             "kernel_size, dilation_rate and "
                                             "pool_size must be the same.")
-    x_input = tf.keras.layers.Input(shape=input_shape)
     x_output = x_input
     for index, conv_params in enumerate(zip(filters, kernel_size, strides,
                                             dilation_rate, factors)):
@@ -337,3 +399,7 @@ def build_upsample_cnn(
         resize = tf.keras.layers.Lambda(resize_func)  # wrap as a Layer object
         x_output = resize(x_output)
     return tf.keras.models.Model(x_input, x_output, name=name)
+
+
+# TODO(rpeloff): see https://pytorch.org/docs/stable/_modules/torch/nn/modules/pixelshuffle.html
+# def build_pixelshuffle_cnn(...) ?

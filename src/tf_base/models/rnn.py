@@ -1,4 +1,4 @@
-"""TODO(rpeloff): module doc
+"""Layers for building recurrent neural networks.
 
 Author: Ryan Eloff
 Contact: ryan.peter.eloff@gmail.com
@@ -21,6 +21,7 @@ from constants import TF_FLOAT_DTYPE
 # Utillity functions:
 # ------------------------------------------------------------------------------ # -----80~100---- #
 
+# ...
 
 def _get_rnn_cell(units, rnn_cell="lstm", rnn_cell_kwargs=None):
     """
@@ -46,13 +47,13 @@ def _get_rnn_cell(units, rnn_cell="lstm", rnn_cell_kwargs=None):
 
 
 # ------------------------------------------------------------------------------ # -----80~100---- #
-# Recurrent neural network (RNN):
+# Convolutional neural network (CNN):
 # ------------------------------------------------------------------------------ # -----80~100---- #
 
 
 def build_rnn(
         x_input, x_lengths, units, rnn_cell="lstm", rnn_cell_kwargs=None,
-        keep_prob=1., scope=None):
+        keep_prob=1., variational_recurrent=False, scope=None):
     """
     Build a recurrent neural network (RNN) with architecture `rnn_cell`.
 
@@ -76,30 +77,9 @@ def build_rnn(
 
     # Dropout
     cell = tf.nn.rnn_cell.DropoutWrapper(
-        cell, input_keep_prob=1., output_keep_prob=keep_prob)
+        cell, input_keep_prob=1., variational_recurrent=variational_recurrent,
+        output_keep_prob=keep_prob, input_size=tf.shape(x_input)[1:], dtype=TF_FLOAT_DTYPE)
 
     # Dynamic RNN
     return tf.nn.dynamic_rnn(
         cell, x_input, sequence_length=x_lengths, dtype=tf.float32, scope=scope)
-
-
-# ------------------------------------------------------------------------------ # -----80~100---- #
-# Multi-layer RNN:
-# ------------------------------------------------------------------------------ # -----80~100---- #
-
-def build_multi_layer_rnn(
-        x_input, x_lengths, layer_units, rnn_cell="lstm", rnn_cell_kwargs=None,
-        keep_prob=1., scope=None):
-    """
-    Build a multi-layer recurrent neural network (RNN) with architecture `rnn_cell`.
-
-    TODO(rpeloff): function doc
-    """
-    x_output = x_input
-    with tf.variable_scope(scope):
-        for layer_index, units in enumerate(layer_units):
-            rnn_layer_scope = "rnn_layer_{}".format(layer_index)
-            x_output, states = build_rnn(
-                x_output, x_lengths, units, rnn_cell, rnn_cell_kwargs,
-                keep_prob, rnn_layer_scope)
-    return x_output, states
