@@ -179,7 +179,17 @@ class CatVAELatent(tf.keras.layers.Layer):
         # z_cat = tf.reshape(z_cat, [-1, self.n_distributions, self.k_categories])
         z_cat = tf.reshape(z_cat, [-1, self.n_distributions*self.k_categories])
 
-        return z_cat, softmax_logits, log_logits_categorical
+        z_hard_one_hot = tf.cast(
+            tf.one_hot(tf.argmax(z_cat, axis=-1), self.k_categories),
+            z_cat.dtype)
+        
+        avg_probs = tf.reduce_mean(z_hard_one_hot, 0)
+        perplexity = tf.exp(
+            -1. * tf.reduce_sum(avg_probs * tf.log(avg_probs + 1e-10)))
+        
+        self.perplexity = perplexity
+
+        return z_cat, z_hard_one_hot, softmax_logits, log_logits_categorical
 
 
 def gumbel_softmax(inputs, k_categories, temperature, straight_through):
@@ -215,4 +225,4 @@ def gumbel_softmax_sample(logits, temperature):
     https://www.tensorflow.org/probability/api_docs/python/tfp/distributions/RelaxedOneHotCategorical.
     """
     y_gumbel_logits = logits + sample_gumbel(tf.shape(logits))
-    return tf.nn.softmax(y_gumbel_logits/temperature)
+    return tf.nn.softmax(y_gumbel_logits)
