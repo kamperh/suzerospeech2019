@@ -1,17 +1,19 @@
-"""TODO(rpeloff): module doc
-
-Batch iterators usage with TensorFlow or PyTorch data pipelines:
-- Iterate over batch elements:
-    >>> batcher = RNNBatcher(...)
-    >>> for x_batch, x_lengths in batcher:
-    >>>     ...
-- Or use generator directly in pipeline:
-    >>> batcher = iter(RNNBatcher(...))
-    >>> data_pipeline = tf.data.Dataset.from_generator(batcher, ...)
+"""Iterator functions for batching data.
 
 Author: Ryan Eloff
 Contact: ryan.peter.eloff@gmail.com
 Date: February 2019
+
+Usage
+-----
+Batch iterators usage with TensorFlow or PyTorch data pipelines:
+- Iterate over batch elements:
+    >>> batcher = SequenceBatcher(...)
+    >>> for x_batch, x_lengths in batcher:
+    >>>     ...
+- Or use generator directly in pipeline:
+    >>> batcher = iter(SequenceBatcher(...))
+    >>> data_pipeline = tf.data.Dataset.from_generator(batcher, ...)
 """
 
 
@@ -24,35 +26,37 @@ import numpy as np
 from typing import Tuple
 
 
-from constants import NP_FLOAT_DTYPE
+from flags import FLAGS
 
 
 # ------------------------------------------------------------------------------ # -----80~100---- #
-# Simple batch iterator base class:
+# Sequence batch iterator base class:
 # ------------------------------------------------------------------------------ # -----80~100---- #
 
 
-# def flatten_tuple(*tuples):
-#     return tuple([element for tup in tuples for element in tup])
-
-
-class RNNBatcher:
+class SequenceBatcher:
 
 
     def __init__(self, *tensors, batch_size=1, shuffle_first_epoch=True,
-                 shuffle_every_epoch=False, small_final_batch=False):
-        self.tensors = tensors
+                 shuffle_every_epoch=False, small_final_batch=False,
+                 return_lengths=True):
         self.batch_size = batch_size
         self.shuffle_first_epoch = shuffle_first_epoch
         self.shuffle_every_epoch = shuffle_every_epoch
         self.small_final_batch = small_final_batch
+        self.return_lengths = return_lengths
         # Check tensors have same first dimension
-        self.n_tensors = np.shape(tensors)[0]
+        self.n_tensors = len(tensors)
         self.n_data = np.shape(tensors[0])[0]
+        self.tensors = []
         for tensor in tensors:
-            if np.shape(tensor)[0] != self.n_data:
-                raise ValueError("All elements of tensors must have same first dimension. "
-                                 "Got dimensions {} and {}.".format(self.n_data, np.shape(tensor)[0]))
+            if np.shape(tensor) == ():
+                tensor = np.array([tensor] * self.n_data)
+            elif np.shape(tensor)[0] != self.n_data:
+                raise ValueError("All elements of tensors must have same first "
+                                 "dimension. Got dimensions {} and {}."
+                                 "".format(self.n_data, np.shape(tensor)[0]))
+            self.tensors.append(tensor)
         # Process RNN data (does not assume lengths of corresponding tensor elements are the same)
         self.dim_feats = []
         self.seq_lengths = []
@@ -103,33 +107,38 @@ class RNNBatcher:
                     tensor_padded = np.zeros((len(batch_indices),
                                               np.max(batch_lengths[i_tensor]),
                                               self.dim_feats[i_tensor]),
-                                             dtype=NP_FLOAT_DTYPE)
+                                             dtype=FLAGS.np_float_dtype)
                     for index, length in enumerate(batch_lengths[i_tensor]):
                         seq = self.tensors[i_tensor][batch_indices[index]]
                         tensor_padded[index, :length, :] = seq
                 batch_padded_tensors.append(tensor_padded)
             # Yield padded tensor batch
-            yield (batch_padded_tensors, batch_lengths)
+            if self.return_lengths:
+                yield (batch_padded_tensors, batch_lengths)
+            else:
+                yield batch_padded_tensors
 
 
 # ------------------------------------------------------------------------------ # -----80~100---- #
-# Batch iterator with bucketing for encoder-decoder models:
+# Sequence batch iterator with bucketing:
 # ------------------------------------------------------------------------------ # -----80~100---- #
 
 
-class BucketRNNBatcher(RNNBatcher):
+class BucketBatcher(SequenceBatcher):
 
 
     def __init__(self, *tensors, batch_size=1, n_buckets=3,
                  shuffle_first_epoch=True, shuffle_every_epoch=False,
-                 small_final_batch=False, sort_tensor_index=0):
+                 small_final_batch=False, return_lengths=True,
+                 sort_tensor_index=0):
         # Initialise base iterator class
-        super(BucketRNNBatcher, self).__init__(
+        super(BucketBatcher, self).__init__(
             *tensors,
             batch_size=batch_size,
             shuffle_first_epoch=shuffle_first_epoch,
             shuffle_every_epoch=shuffle_every_epoch,
-            small_final_batch=small_final_batch)
+            small_final_batch=small_final_batch,
+            return_lengths=return_lengths)
         self.n_buckets = n_buckets
         if self.n_buckets is None:
             self.n_buckets = 1
@@ -160,24 +169,26 @@ class BucketRNNBatcher(RNNBatcher):
 
 
 # ------------------------------------------------------------------------------ # -----80~100---- #
-# Batch iterator with temperature scheduling for encoder-decoder models:
+# Sequence batch iterator with bucketing and temperature scheduling:
 # ------------------------------------------------------------------------------ # -----80~100---- #
 
 
-class TemperatureRNNBatcher(BucketRNNBatcher):
+class TemperatureBatcher(BucketBatcher):
 
 
     def __init__(self, *tensors, batch_size=1, n_buckets=3, temperatures=None,
                  shuffle_first_epoch=True, shuffle_every_epoch=False,
-                 small_final_batch=False, sort_tensor_index=0):
+                 small_final_batch=False, return_lengths=True,
+                 sort_tensor_index=0):
         # Initialise base iterator class
-        super(TemperatureRNNBatcher, self).__init__(
+        super(TemperatureBatcher, self).__init__(
             *tensors,
             batch_size=batch_size,
             n_buckets=n_buckets,
             shuffle_first_epoch=shuffle_first_epoch,
             shuffle_every_epoch=shuffle_every_epoch,
             small_final_batch=small_final_batch,
+            return_lengths=return_lengths,
             sort_tensor_index=sort_tensor_index)
         self.temperatures = temperatures
         self.epoch = 0  # track current epoch for temperature schedule
@@ -189,5 +200,9 @@ class TemperatureRNNBatcher(BucketRNNBatcher):
                                else self.temperatures[-1])
         self.epoch += 1  # update epoch for next iter loop
         # Yield padded tensor batch (from base iterator) along with temperature
-        for batch_tensors, batch_lengths in super(TemperatureRNNBatcher, self).__iter__():
-            yield (batch_tensors, batch_lengths, current_temperature)
+        if self.return_lengths:
+            for batch_tensors, batch_lengths in super(TemperatureBatcher, self).__iter__():
+                yield (batch_tensors, batch_lengths, current_temperature)
+        else:
+            for batch_tensors in super(TemperatureBatcher, self).__iter__():
+                yield (batch_tensors, [[current_temperature]])

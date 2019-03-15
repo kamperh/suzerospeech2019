@@ -3,7 +3,8 @@ Training functions.
 Author: Herman Kamper
 Date: 2016, 2018
 
-TODO(rpeloff): pep8ify pleaseeee (:
+Edited: Ryan Eloff
+Date: February 2019
 """
 
 from __future__ import division
@@ -21,7 +22,8 @@ from collections.abc import Iterable
 def train_fixed_epochs(n_epochs, optimizer, train_loss_tensor,
         train_feed_iterator, feed_placeholders, validation_loss_tensor=None,
         validation_feed_iterator=None, load_model_fn=None, save_model_fn=None,
-        save_best_val_model_fn=None, config=None, epoch_offset=0):
+        save_best_val_model_fn=None, additional_train_feed=None,
+        additional_validation_feed=None, config=None, epoch_offset=0):
     """
     Train a model for a fixed number of epochs.
 
@@ -68,11 +70,13 @@ def train_fixed_epochs(n_epochs, optimizer, train_loss_tensor,
 
     def feed_dict(vals):
         vals_flat = []
+        # print(vals[1])
         for v in vals:
             if isinstance(v, Iterable):
                 vals_flat.extend(v)
             else:
                 vals_flat.append(v)
+        # print(vals_flat[2])        
         return {key: val for key, val in zip(feed_placeholders, vals_flat)}
 
     # Launch the graph
@@ -96,17 +100,23 @@ def train_fixed_epochs(n_epochs, optimizer, train_loss_tensor,
             train_losses = []
             if not isinstance(train_loss_tensor, (list, tuple)):
                 for cur_feed in train_feed_iterator:
+                    next_feed = feed_dict(cur_feed)
+                    if additional_train_feed is not None:
+                        next_feed.update(additional_train_feed)
                     _, cur_loss = session.run(
                         [optimizer, train_loss_tensor],
-                        feed_dict=feed_dict(cur_feed)
+                        feed_dict=next_feed
                         )
                     train_losses.append(cur_loss)
                 train_loss = np.mean(train_losses)
             else:
                 for cur_feed in train_feed_iterator:
+                    next_feed = feed_dict(cur_feed)
+                    if additional_train_feed is not None:
+                        next_feed.update(additional_train_feed)
                     cur_loss = session.run(
                         [optimizer] + train_loss_tensor,
-                        feed_dict=feed_dict(cur_feed)
+                        feed_dict=next_feed
                         )
                     cur_loss.pop(0)  # remove the optimizer
                     cur_loss = np.array(cur_loss)
@@ -119,18 +129,24 @@ def train_fixed_epochs(n_epochs, optimizer, train_loss_tensor,
                 validation_losses = []
                 if not isinstance(validation_loss_tensor, (list, tuple)):
                     for cur_feed in validation_feed_iterator:
+                        next_feed = feed_dict(cur_feed)
+                        if additional_validation_feed is not None:
+                            next_feed.update(additional_validation_feed)
                         cur_loss = session.run(
                             [validation_loss_tensor],
-                            feed_dict=feed_dict(cur_feed)
+                            feed_dict=next_feed
                             )
                         validation_losses.append(cur_loss)
                     validation_loss = np.mean(validation_losses)
                     cur_validation_loss = validation_loss
                 else:
                     for cur_feed in validation_feed_iterator:
+                        next_feed = feed_dict(cur_feed)
+                        if additional_validation_feed is not None:
+                            next_feed.update(additional_validation_feed)
                         cur_loss = session.run(
                             validation_loss_tensor,
-                            feed_dict=feed_dict(cur_feed)
+                            feed_dict=next_feed
                             )
                         cur_loss = np.array(cur_loss)
                         validation_losses.append(cur_loss)
