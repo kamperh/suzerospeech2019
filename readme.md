@@ -1,6 +1,11 @@
 Stellenbosch University ZeroSpeech 2019 System
 ==============================================
 
+*Please note:* This code is currently in a very preliminary state, i.e. it
+would be hard to use out-of-the-box. We hope to clean it and make it more
+usable in the near future.
+
+
 Overview
 --------
 The [ZeroSpeech challenges](https://zerospeech.com/) aim to answer the question
